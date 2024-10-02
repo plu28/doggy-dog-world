@@ -16,6 +16,11 @@ Entrant stat fields:
 ### Battles
 Battles will be turn based and dependent on each characters stats. A sequence of probabilistic events will determine the winner. The sequence of events as well as the end-result are passed to GPT-4o-mini to generate a random story for how the fight played out. 
 
+### User interaction
+- Users will be able to create accounts on our platform and then bet on fights using virtual currency
+- A seperate leaderboard of the best betters with the most money will be maintained along with their win loss ratios and streaks.
+- Users will be able to see their history.
+
 ### Potential added functionality
 - Acquiring weapons to boost stats. Winners collect losers weapons.
 - Potentially a basic front-end UI to display the leaderboard and battles.
