@@ -22,7 +22,7 @@ def register(user: User):
             user_id = con.execute(add_user_query, {'email': user.email,  'username': user.username}).fetchone()
     except Exception as e:
         print(e)
-        return {'success': False, 'error': str(e)}
+        return {'error': str(e)}
 
     return {'success': True}
 
