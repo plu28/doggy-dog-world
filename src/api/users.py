@@ -38,7 +38,7 @@ def login(user: User):
                 raise Exception("User with given username and email does not exist")
     except Exception as e:
         print(e)
-        return {'success': False, 'error': str(e)}
+        return {'error': str(e)}
 
     return {'success': True, 'user_id': user.id}
 
