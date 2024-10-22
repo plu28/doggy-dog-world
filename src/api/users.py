@@ -19,12 +19,12 @@ def register(user: User):
     try:
         with db.engine.begin() as con:
             add_user_query = sqlalchemy.text('INSERT INTO users (email, username) VALUES (:email, :username) RETURNING id')
-            user_id = con.execute(add_user_query, {'email': user.email,  'username': user.username}).fetchone()
+            user_id = con.execute(add_user_query, {'email': user.email,  'username': user.username}).fetchone().id
     except Exception as e:
         print(e)
         return {'error': str(e)}
 
-    return {'success': True}
+    return {'user_id': user_id}
 
 
 @router.post("/login")
