@@ -40,7 +40,7 @@ def login(user: User):
         print(e)
         return {'error': str(e)}
 
-    return {'success': True, 'user_id': user.id}
+    return {'user_id': user.id}
 
 
 @router.put("/{user_id}/username")
