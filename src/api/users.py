@@ -30,7 +30,7 @@ def register(user: User):
     return {'success': True}
 
 
-@router.put("{user_id}/username")
+@router.put("/{user_id}/username")
 def update_username(user_id: int, username: str):
     try:
         with db.engine.begin() as con:
