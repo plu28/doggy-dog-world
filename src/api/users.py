@@ -54,3 +54,20 @@ def update_username(user_id: int, username: str):
         return {'success': False, 'error': str(e)}
 
     return {'success': True}
+
+
+@router.get("/{user_id}/balance")
+def get_balance(user_id: int):
+    try:
+        with db.engine.begin() as con:
+            balance_query = sqlalchemy.text("""
+                SELECT COALESCE(SUM(balance_change), 0) AS balance
+                FROM user_balances
+                WHERE user_id = :user_id
+            """)
+            balance = con.execute(balance_query, {'user_id': user_id}).fetchone().balance
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    return balance
