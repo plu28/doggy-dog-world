@@ -71,3 +71,32 @@ def get_balance(user_id: int):
         return {'error': str(e)}
 
     return balance
+
+
+@router.post("/{user_id}/balance/add")
+def add_balance(user_id: int, amount: int):
+    try:
+        with db.engine.begin() as con:
+            change_balance_query = sqlalchemy.text("""
+                WITH inserted_balance AS (
+                    INSERT INTO user_balances (user_id, balance_change)
+                    VALUES (:user_id, :amount)
+                    RETURNING user_id, balance_change
+                )
+                SELECT COALESCE(SUM(balance_change), 0) AS new_balance
+                FROM (
+                    SELECT user_id, balance_change
+                    FROM user_balances
+                    UNION ALL
+                    SELECT user_id, balance_change
+                    FROM inserted_balance
+                ) AS combined_rows
+                WHERE user_id = :user_id
+            """)
+            new_balance = con.execute(change_balance_query, {'user_id': user_id, 'amount': amount}).fetchone().new_balance
+
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    return new_balance
