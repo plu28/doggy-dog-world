@@ -5,6 +5,7 @@ import json
 import logging
 import sys
 from starlette.middleware.cors import CORSMiddleware
+from src.api import users
 
 description = """
 Doggy Dog World is where we watch the fights of your dreams.
@@ -17,7 +18,7 @@ app = FastAPI(
     terms_of_service="http://example.com/terms/",
     contact={
         "name": "The Guys",
-        "email": "notareal@email",
+        "email": "aking81@calpoly.edu",
     },
 )
 
@@ -31,6 +32,8 @@ app = FastAPI(
 #     allow_methods=["GET", "OPTIONS"],
 #     allow_headers=["*"],
 # )
+
+app.include_router(users.router)
 
 @app.exception_handler(exceptions.RequestValidationError)
 @app.exception_handler(ValidationError)
