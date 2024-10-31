@@ -166,23 +166,61 @@ Description: generates a bracket for a given list of entrants
     }
     ```
 
-6. Get leaderboard - `/games/leaderboard` (GET)
-Description: gets the current leaderboard of the top betters (and top fighters later on potentially)
+### Leaderboards
+1. Get entrants leaderboard - `/leaderboards/entrants/{game_id}` (GET)
+Description: Returns the top 10 entrants based on their total wins in a game
+   ##### Request:
+   ```json
+    {
+        "game_id": 27
+    }
+    ```
     ##### Response
     ```json
     [
         {
-            "username": "John Doe",
-            "balance": 7996
+            "game_id": 27,
+            "rank": 1
+            "entrant_name": "penguin",
+            "entrant_weapon": "rocket launcher"
         },
         {
-            "username": "Karen",
-            "balance": 6955
+            "game_id": 27,
+            "rank": 2
+            "entrant_name": "chihuahua",
+            "entrant_weapon": "butter knife"
         },
         ...
     ]
     ```
     
+2. Get users leaderboard - `/leaderboards/users/{game_id}` (GET)
+Description: Returns the top 10 users based on their total earnings in a game
+   ##### Request:
+   ```json
+    {
+        "game_id": 14
+    }
+    ```
+    ##### Response
+    ```json
+    [
+        {
+            "game_id": 14,
+            "rank": 1
+            "username": "John Doe",
+            "total_earnings": 7996
+        },
+        {
+            "game_id": 14,
+            "rank": 2
+            "username": "Karen Smith",
+            "total_earnings": 6995
+        },
+        ...
+    ]
+    ```
+
 ### Match 
 1. Get battle image - `/matches/{match_id}/battle_image` (GET)
 Description: generates an image of a battle between two entrants
