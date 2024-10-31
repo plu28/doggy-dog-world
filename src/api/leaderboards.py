@@ -4,8 +4,8 @@ import sqlalchemy
 from src import database as db
 
 router = APIRouter(
-    prefix="/leaderboard",
-    tags=["leaderboard"],
+    prefix="/leaderboards",
+    tags=["leaderboards"],
 )
 
 @router.get("/entrants/{game_id}")
