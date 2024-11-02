@@ -6,6 +6,7 @@ import logging
 import sys
 from starlette.middleware.cors import CORSMiddleware
 from src.api import users
+from src.api import gameplay
 
 description = """
 Doggy Dog World is where we watch the fights of your dreams.
@@ -34,6 +35,7 @@ app = FastAPI(
 # )
 
 app.include_router(users.router)
+app.include_router(gameplay.router)
 
 @app.exception_handler(exceptions.RequestValidationError)
 @app.exception_handler(ValidationError)
