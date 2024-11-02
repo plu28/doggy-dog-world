@@ -58,8 +58,29 @@ def get_active_round(game_id: int):
     return {'round_id': round_id}
 
 # GET: matches from round id
-# @router.get("/active_match/{round_id}")
-# def get_active_match(round_id: int):
+@router.get("/active_match/{round_id}")
+def get_active_match(round_id: int):
+    try:
+        with db.engine.begin() as con:
+            select_query = sqlalchemy.text('''
+                SELECT matches.id AS match, matches.round_id AS game
+                FROM matches
+                WHERE NOT EXISTS (
+                  SELECT 1
+                  FROM completed_matches
+                  WHERE completed_matches.id = matches.id
+                )
+                AND matches.round_id = :round_id
+                ''')
+            match_id = con.execute(select_query, {'round_id': round_id}).scalar_one_or_none()
+        if match_id == None:
+            raise Exception("There are currently no active matches.")
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    return {'match_id': match_id}
+
 
 # GET: retrieve current match entrants from match id
 # @router.get("/match_entrants")
