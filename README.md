@@ -1,20 +1,11 @@
-### We're building a fighting simulator with a backend to support it.
-We'll be representing the leaderboard via a persistent table that will be constantly updated as battles progress. Entrants will be randomly generated and added to the participants or fighter table as needed. A backend API will pull participants and simulate a fight between the two. The loser dies, the winner gets ELO and rises in the leaderboards. 
-
-We plan to add more functionality like a seperate weapons table from which participants can acquire weapons.
+### We're building an API for a betting game with simulated fighting.
+Players will join an active game and be given money. In addition to being given money on join, they will also be able to create an entrant to fight other players' entrants. Every round will be composed of a set of matches where players will bet on which entrant they think will win. A winner will be selected, and then play will continue. Entrants will fight tourney style until one reigns supreme. Player's final money amounts will be displayed on a persistent leaderboard.
 
 ### Generating Entrants
-Entrants will be generated when a certain threshold is met (for example, if there are less than 10 entrants in the pool). Entrant generation will be done randomly through an API call to OpenAI's GPT-4o-mini. Each entrant will have stats generated according to their characteristics.
-Entrant stat fields:
-- Base health
-- Base damage
-- Strength multiplier
-- Critical hit chance
-- Mercy chance
-- and more
+When a player joins a game, they will be able to generate an entrant to add to the bracket. They will do this by supplying a name and weapon.
   
-### Battles
-Battles will be turn based and dependent on each characters stats. A sequence of probabilistic events will determine the winner. The sequence of events as well as the end-result are passed to GPT-4o-mini to generate a random story for how the fight played out. 
+### Matches
+During a match, players bet on which of the two entrants they think will win the fight. A winner will then be randomly selected. The probability of an entrant winning a fight will be proportional to the percentage of bets on that entrant for that round. ChatGPT will then create a short story describing the fight.
 
 ### User interaction
 - Users will be able to create accounts on our platform and then bet on fights using virtual currency
@@ -22,14 +13,11 @@ Battles will be turn based and dependent on each characters stats. A sequence of
 - Users will be able to see their history.
 
 ### Potential added functionality
-- Acquiring weapons to boost stats. Winners collect losers weapons.
-- Potentially a basic front-end UI to display the leaderboard and battles.
-- Gang battles. If a winner spares a loser, there is a chance for the two to team up. A graph database could be used to manage fighter relationships. Gangs on opposite ends of the graph might seek each other out which could create some interesting scenerios.
-- Sponsors. Users can sponsor fighters in real-time and increase their chances of winning.
+- Rather than having selected weapons and characters, users can create a list of characters and weapons. They will then be able to create a character-weapon combination from a set of characters and weapons randomly selected from other users.
 
 #### MVP:
 - add entrants
-- simulate fighting
+- place bets and win fights
 - maintain a leaderboard
 
 ### Contributers
