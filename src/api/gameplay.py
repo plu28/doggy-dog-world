@@ -113,7 +113,7 @@ def get_active_match_entrants(match_id: int):
         'entrant2_id': match_dict['entrant_two']
     }
 
-# NOTE: Ugly error if you pass in a string that is not a uuid format
+# GET: Returns a user balance for a given user and a game in which they had balance change
 @router.get("/balance/{uuid}/{game_id}")
 def get_balance(uuid: str, game_id: int):
     uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
