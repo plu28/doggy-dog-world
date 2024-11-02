@@ -83,10 +83,34 @@ def get_active_match(round_id: int):
 
 
 # GET: retrieve current match entrants from match id
-# @router.get("/match_entrants")
-# def current_match_entrants(uuid: str):
-#     # Game -> round -> match
-#     # Active match is the match that doesn't have any rows in match_losers or match_victors
+@router.get("/active_match_entrants/{match_id}")
+def get_active_match_entrants(match_id: int):
+    try:
+        with db.engine.begin() as con:
+            select_query = sqlalchemy.text('''
+                SELECT entrant_one, entrant_two
+                FROM matches
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM completed_matches
+                    WHERE completed_matches.id = matches.id
+                )
+                AND matches.id = :match_id
+                ''')
+            match_row = con.execute(select_query, {'match_id': match_id}).first()
+        if match_row == None:
+            raise Exception("Match does not exist or match is completed.")
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    # Map the row to a python dictionary
+    match_dict = match_row._asdict()
+
+    return {
+        'entrant1_id': match_dict['entrant_one'],
+        'entrant2_id': match_dict['entrant_two']
+    }
 
 
 
