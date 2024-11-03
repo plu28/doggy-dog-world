@@ -165,8 +165,8 @@ class Bet(BaseModel):
 #       this could be an issue in the theoretical case where a bad actor wants to run a script to just insert a
 #       bajillion rows into our db.
 #       A potential fix would be to limit one bet, per user, per entrant
-@router.post("/bet/{uuid}")
-def place_bet(uuid: str, bet: Bet):
+@router.post("/bet/{uuid}/{bet_placement_id}")
+def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
     # Make sure uuid is of a valid form (query throws a nasty error otherwise)
     uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
     try:
@@ -261,10 +261,10 @@ def place_bet(uuid: str, bet: Bet):
             '''
 
             insert_into_bets_query = sqlalchemy.text(f'''{cte}
-                INSERT INTO bets (user_id, entrant_id, match_id, amount)
-                SELECT :uuid, :entrant_id, :match_id, :amount
+                INSERT INTO bets (user_id, entrant_id, match_id, amount, bet_placement_id)
+                SELECT :uuid, :entrant_id, :match_id, :amount, :bet_placement_id
                 {conditions}
-                -- This condition can not be shared between the two.
+                -- These conditions can not be shared between the two.
                     -- This query inserts into bets, and this condition checks for the state of bets.
                     -- This means the state of bets will not be the same between the two queries and the condition will not be the same
                 -- Ensure that user is not betting an amount less than they've already bet
@@ -272,6 +272,12 @@ def place_bet(uuid: str, bet: Bet):
                     SELECT current_bet_amount
                     FROM current_user_bets
                     WHERE current_bet_amount < -(:amount)
+                )
+                -- Ensure the call is idempotent (bet_placement_id doesn't already exist)
+                AND NOT EXISTS (
+                    SELECT bet_placement_id
+                    FROM bets
+                    WHERE bet_placement_id = :bet_placement_id
                 )
             ''')
 
@@ -285,7 +291,8 @@ def place_bet(uuid: str, bet: Bet):
                 'uuid': uuid,
                 'entrant_id': bet.entrant_id,
                 'match_id': bet.match_id,
-                'amount': bet.bet_amount
+                'amount': bet.bet_amount,
+                'bet_placement_id': bet_placement_id
             }).rowcount
             if insert_into_bets_status > 1:
                 raise Exception("Strange error occured. Placing bet somehow inserted more than 1 row")
@@ -296,11 +303,11 @@ def place_bet(uuid: str, bet: Bet):
                 'uuid': uuid,
                 'entrant_id': bet.entrant_id,
                 'match_id': bet.match_id,
-                'amount': bet.bet_amount
+                'amount': bet.bet_amount,
             }).rowcount
             print(insert_into_user_balances_status)
             if insert_into_user_balances_status != 1:
-                raise Exception("A concurrency error likely occurred") from None
+                raise Exception("A concurrency error likely occurred")
 
     except IntegrityError as e:
         return {'error': "Attempted to bet on a match that hasn't even been created yet"}
