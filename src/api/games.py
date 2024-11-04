@@ -5,8 +5,6 @@ from src import database as db
 from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
-# from users import get_current_user
-# import users from src/api
 from src.api.users import get_current_user # middleware for auth
 
 router = APIRouter(
