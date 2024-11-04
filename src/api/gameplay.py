@@ -610,6 +610,7 @@ def continue_game(game_id: int):
                         bets.match_id AS match_id
                     FROM bets
                     WHERE entrant_id = (SELECT entrant_1 FROM active_match)
+                    AND bets.match_id = (SELECT active_match_id FROM active_match)
                     GROUP BY bets.user_id, bets.match_id
                 )
                 INSERT INTO user_balances (user_id, balance_change, match_id)
