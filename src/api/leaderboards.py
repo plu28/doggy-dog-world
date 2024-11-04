@@ -32,7 +32,7 @@ def get_entrants_leaderboard(game_id):
                         LIMIT 10
                     """
     
-    with db.engine().begin() as connection:
+    with db.engine.begin() as connection:
         entrants_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).mappings.fetchall()
 
         print("entrants_leaderboard = ", entrants_leaderboard)
@@ -75,7 +75,7 @@ def get_users_leaderboard(game_id):
                         LIMIT 10
                     """
     
-    with db.engine().begin() as connection:
+    with db.engine.begin() as connection:
         users_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).mappings.fetchall()
 
         print("users_leaderboard = ", users_leaderboard)
