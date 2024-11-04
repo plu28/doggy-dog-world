@@ -5,7 +5,7 @@ import json
 import logging
 import sys
 from starlette.middleware.cors import CORSMiddleware
-from src.api import users, entrants, games
+from src.api import users, entrants, games, gameplay
 
 description = """
 Doggy Dog World is where we watch the fights of your dreams.
@@ -34,6 +34,7 @@ app = FastAPI(
 # )
 
 app.include_router(users.router)
+app.include_router(gameplay.router)
 app.include_router(games.router)
 app.include_router(entrants.router)
 
