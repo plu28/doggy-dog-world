@@ -11,31 +11,8 @@ router = APIRouter(
     tags=["gameplay"],
 )
 
-# GET: active game id
-@router.get("/get_games")
-async def active_game():
-    try:
-        with db.engine.begin() as con:
-            select_query = sqlalchemy.text('''
-                SELECT id
-                FROM games
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_games
-                    WHERE game_id = games.id
-                )
-                ''')
-            game_id = con.execute(select_query).scalar_one_or_none()
-        if game_id == None:
-            raise Exception("There are currently no active games.")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
-
-    return {'game_id': game_id}
-
 # GET: active rounds from game id
-@router.get("/get_rounds/{game_id}")
+@router.get("/get_round/{game_id}")
 async def get_active_round(game_id: int):
     try:
         with db.engine.begin() as con:
