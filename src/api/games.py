@@ -89,6 +89,11 @@ LEFT JOIN first_player fp ON true
 WHERE p.game_id = :game_id
 """
 
+ADD_INITIAL_BALANCE_QUERY = """
+INSERT INTO user_balances (balance_change, user_id, game_id)
+VALUES (1000, :user_id, :game_id)
+"""
+
 # join an active game or create a new one if none exists
 # the first player to join becomes the admin
 @router.post("/join", response_model=GameResponse)
@@ -126,6 +131,14 @@ async def join_game(user = Depends(get_current_user)):
             # add player to game
             conn.execute(
                 sqlalchemy.text(ADD_PLAYER_QUERY),
+                {
+                    "user_id": user_id,
+                    "game_id": active_game.id
+                }
+            )
+            
+            conn.execute(
+                sqlalchemy.text(ADD_INITIAL_BALANCE_QUERY),
                 {
                     "user_id": user_id,
                     "game_id": active_game.id
@@ -379,14 +392,12 @@ async def start_game(
                 )
             
             # create first round
-            round_id = int(datetime.now().timestamp() * 1000)
             conn.execute(
                 sqlalchemy.text("""
-                    INSERT INTO rounds (id, game_id)
-                    VALUES (:round_id, :game_id)
+                    INSERT INTO rounds (game_id)
+                    VALUES (:game_id)
                 """),
                 {
-                    "round_id": round_id,
                     "game_id": game_id
                 }
             )
