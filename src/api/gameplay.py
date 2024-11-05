@@ -114,6 +114,7 @@ async def get_active_match_entrants(match_id: int):
     }
 
 # GET: Returns a user balance for a given user and a game in which they had balance change
+# TODO: Make this endpoint require user authentication. For the sake of testing, it is left as is for now
 @router.get("/balance/{uuid}/{game_id}")
 async def get_balance(uuid: str, game_id: int):
     # Make sure uuid is of a valid form (query throws a nasty error otherwise)
@@ -128,17 +129,10 @@ async def get_balance(uuid: str, game_id: int):
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
-                WITH game_matches AS (
-                    SELECT matches.id AS matches
-                    FROM matches
-                    JOIN rounds ON rounds.id = matches.round_id
-                    JOIN games ON games.id = rounds.game_id
-                    WHERE games.id = :game_id
-                )
                 SELECT SUM(user_balances.balance_change) AS balance
                 FROM
                     user_balances
-                WHERE match_id IN (SELECT game_matches.matches FROM game_matches)
+                    WHERE game_id = :game_id
                 AND user_id = :uuid
                 ''')
             user_balance = con.execute(select_query, {
@@ -167,6 +161,7 @@ class Bet(BaseModel):
 #       this could be an issue in the theoretical case where a bad actor wants to run a script to just insert a
 #       bajillion rows into our db.
 #       A potential fix would be to limit one bet, per user, per entrant
+# TODO: Make this endpoint require user authentication. For the sake of testing, it is left as is for now
 @router.post("/bet/{uuid}/{bet_placement_id}")
 async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
     # Make sure uuid is of a valid form (query throws a nasty error otherwise)
@@ -226,7 +221,7 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
                 SELECT SUM(user_balances.balance_change) AS balance
                 FROM
                     user_balances
-                WHERE match_id IN (SELECT game_matches.matches FROM game_matches)
+                WHERE game_id = (SELECT game_id FROM match_round)
                 AND user_id = :uuid
             ),
             -- Gets the amount the user has already bet
@@ -284,8 +279,8 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
             ''')
 
             insert_into_user_balances_query = sqlalchemy.text(f'''{cte}
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT :uuid, -(:amount), :match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round)
                 {conditions}
             ''')
 
@@ -307,7 +302,6 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
                 'match_id': bet.match_id,
                 'amount': bet.bet_amount,
             }).rowcount
-            print(insert_into_user_balances_status)
             if insert_into_user_balances_status != 1:
                 raise Exception("A concurrency error likely occurred")
 
@@ -613,8 +607,8 @@ def continue_game(game_id: int):
                     AND bets.match_id = (SELECT active_match_id FROM active_match)
                     GROUP BY bets.user_id, bets.match_id
                 )
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
                 FROM winning_user_bet_amounts
             '''
             disburse_entrant_two_won = '''
@@ -628,8 +622,8 @@ def continue_game(game_id: int):
                     WHERE entrant_id = (SELECT entrant_2 FROM active_match)
                     GROUP BY bets.user_id, bets.match_id
                 )
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
                 FROM winning_user_bet_amounts
             '''
 
