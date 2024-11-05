@@ -5,6 +5,7 @@ import sqlalchemy
 from src import database as db
 import re
 import random
+from src.api.users import get_current_user # middleware for auth
 
 router = APIRouter(
     prefix="/gameplay",
@@ -91,17 +92,9 @@ async def get_active_match_entrants(match_id: int):
     }
 
 # GET: Returns a user balance for a given user and a game in which they had balance change
-# TODO: Make this endpoint require user authentication. For the sake of testing, it is left as is for now
-@router.get("/balance/{uuid}/{game_id}")
-async def get_balance(uuid: str, game_id: int):
-    # Make sure uuid is of a valid form (query throws a nasty error otherwise)
-    uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
-    try:
-        if not re.match(uuid_pattern, uuid):
-            raise Exception("Invalid uuid")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
+@router.get("/balance/{game_id}")
+async def get_balance(game_id: int, user = Depends(get_current_user)):
+    uuid = user.user.user_metadata['sub']
 
     try:
         with db.engine.begin() as con:
@@ -129,26 +122,13 @@ class Bet(BaseModel):
     entrant_id: int
     bet_amount: int
 
-# BUG: Currently has no way to account for initial balances.
-# Insert into bets and user_balances
-# Ensure bet amount is less than or equal to user balance
-# Ensure bet is being placed on an active match
-# Ensure bet is being placed on an entrant in that match
 # NOTE: This current implementation would technically enable a user to place bets an unlimited amount of times.
 #       this could be an issue in the theoretical case where a bad actor wants to run a script to just insert a
 #       bajillion rows into our db.
 #       A potential fix would be to limit one bet, per user, per entrant
-# TODO: Make this endpoint require user authentication. For the sake of testing, it is left as is for now
-@router.post("/bet/{uuid}/{bet_placement_id}")
-async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
-    # Make sure uuid is of a valid form (query throws a nasty error otherwise)
-    uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
-    try:
-        if not re.match(uuid_pattern, uuid):
-            raise Exception("Invalid uuid")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
+@router.post("/bet/{bet_placement_id}")
+async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
+    uuid = user.user.user_metadata['sub']
 
     if bet.bet_amount == 0:
         return {'error': 'You can not bet 0'}
