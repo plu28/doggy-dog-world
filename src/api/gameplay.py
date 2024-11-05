@@ -171,14 +171,14 @@ async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_
                 FROM matches
                 JOIN rounds ON rounds.id = matches.round_id
                 JOIN games ON games.id = rounds.game_id
-                WHERE games.id IN (SELECT game_id FROM match_round)
+                WHERE games.id IN (SELECT game_id FROM match_round LIMIT 1)
             ),
             -- Gets the balance of the user placing the bet
             user_balance AS (
                 SELECT SUM(user_balances.balance_change) AS balance
                 FROM
                     user_balances
-                WHERE game_id = (SELECT game_id FROM match_round)
+                WHERE game_id = (SELECT game_id FROM match_round LIMIT 1)
                 AND user_id = :uuid
             ),
             -- Gets the amount the user has already bet
@@ -237,7 +237,7 @@ async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_
 
             insert_into_user_balances_query = sqlalchemy.text(f'''{cte}
                 INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
-                SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round)
+                SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round LIMIT 1)
                 {conditions}
             ''')
 
