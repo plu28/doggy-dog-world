@@ -38,6 +38,8 @@ class UserUpdateUsername(BaseModel):
 
 class BalanceAdd(BaseModel):
     amount: int
+    
+
 
 # auth middleware
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -54,36 +56,62 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 @router.post("/register")
 async def register(user: UserRegister):
     try:
-        # register with supabase auth
+        # check if username is already taken
+        with db.engine.begin() as conn:
+            check_username_query = sqlalchemy.text(
+                'SELECT username FROM profiles WHERE username = :username'
+            )
+            existing_username = conn.execute(
+                check_username_query,
+                {'username': user.username}
+            ).fetchone()
+            
+            if existing_username:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Username already taken"
+                )
+        # if username is available, proceed with auth registration
         auth_response = supabase.auth.sign_up({
             "email": user.email,
             "password": user.password
         })
 
         if not auth_response.user:
+            print(f"Failed to create user in Supabase")
             raise HTTPException(
                 status_code=400,
                 detail="Failed to create user in Supabase"
             )
 
-        # add the user to the profiles table
-        query = sqlalchemy.text(
-            'INSERT INTO profiles (user_id, username) VALUES (:user_id, :username)'
-        )
-
-        with db.engine.begin() as conn:
-            conn.execute(
-                query,
-                {
-                    'user_id': auth_response.user.id,
-                    'username': user.username
-                }
+        try:
+            # create a profile for the user
+            query = sqlalchemy.text(
+                'INSERT INTO profiles (user_id, username) VALUES (:user_id, :username)'
             )
+            with db.engine.begin() as conn:
+                conn.execute(
+                    query,
+                    {
+                        'user_id': auth_response.user.id,
+                        'username': user.username
+                    }
+                )
 
-        return {
-            "message": "Registration successful. Please check your email for verification.",
-            "user_id": auth_response.user.id
-        }
+            return {
+                "message": "Registration successful. Please check your email for verification.",
+                "user_id": auth_response.user.id
+            }
+        except Exception as profile_error:
+            # if profile creation fails, clean up the auth user
+            try:
+                supabase.auth.admin.delete_user(auth_response.user.id)
+            except Exception as cleanup_error:
+                print(f"Failed to clean up auth user: {cleanup_error}")
+            raise HTTPException(
+                status_code=400,
+                detail="Username already taken"
+            )
 
     except Exception as e:
         print(f"Registration error: {str(e)}")
