@@ -63,7 +63,7 @@ def create_entrant(entrant: Entrant, username: str):
         print(e)
         return {'error': str(e)}
 
-    return entrant_id
+    return {"entrant_id": entrant_id}
 
 
 @router.get('/{entrant_id}')

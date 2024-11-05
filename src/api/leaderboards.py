@@ -32,8 +32,8 @@ def get_entrants_leaderboard(game_id):
                         LIMIT 10
                     """
     
-    with db.engine().begin() as connection:
-        entrants_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).mappings.fetchall()
+    with db.engine.begin() as connection:
+        entrants_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).fetchall()
 
         print("entrants_leaderboard = ", entrants_leaderboard)
 
@@ -43,9 +43,10 @@ def get_entrants_leaderboard(game_id):
         result.append(
             {
                 "game_id" : game_id,
-                "rank" : entrant["rank"],
-                "entrant_name" : entrant["entrant_name"],
-                "entrant_weapon" : entrant["entrant_weapon"]
+                "rank" : entrant.rank,
+                "total_wins": entrant.total_wins,
+                "entrant_name" : entrant.entrant_name,
+                "entrant_weapon" : entrant.entrant_weapon
             }
         )
 
@@ -75,8 +76,8 @@ def get_users_leaderboard(game_id):
                         LIMIT 10
                     """
     
-    with db.engine().begin() as connection:
-        users_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).mappings.fetchall()
+    with db.engine.begin() as connection:
+        users_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).fetchall()
 
         print("users_leaderboard = ", users_leaderboard)
 
@@ -86,9 +87,9 @@ def get_users_leaderboard(game_id):
         result.append(
             {
                 "game_id" : game_id,
-                "rank" : user["rank"],
-                "username" : user["username"],
-                "total_earnings" : user["total_earnings"]
+                "rank" : user.rank,
+                "username" : user.username,
+                "total_earnings" : user.total_earnings
             }
         )
 
