@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+from psycopg2.errors import UniqueViolation
 from typing import Optional
 import sqlalchemy
 from src import database as db
@@ -84,6 +85,8 @@ async def register(user: UserRegister):
             "message": "Registration successful. Please check your email for verification.",
             "user_id": auth_response.user.id
         }
+    except UniqueViolation as uv:
+        raise Exception("Username already exists")
 
     except Exception as e:
         print(f"Registration error: {str(e)}")
