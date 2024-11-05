@@ -89,6 +89,13 @@ LEFT JOIN first_player fp ON true
 WHERE p.game_id = :game_id
 """
 
+CHECK_IF_USER_HAS_BALANCE_QUERY = """
+SELECT 
+    COUNT(*) as count
+FROM user_balances
+WHERE user_id = :user_id AND game_id = :game_id
+"""
+
 ADD_INITIAL_BALANCE_QUERY = """
 INSERT INTO user_balances (balance_change, user_id, game_id)
 VALUES (1000, :user_id, :game_id)
@@ -137,13 +144,23 @@ async def join_game(user = Depends(get_current_user)):
                 }
             )
             
-            conn.execute(
-                sqlalchemy.text(ADD_INITIAL_BALANCE_QUERY),
+            # only add initial balance if user doesn't already have one
+            balance_exists = conn.execute(
+                sqlalchemy.text(CHECK_IF_USER_HAS_BALANCE_QUERY),
                 {
                     "user_id": user_id,
                     "game_id": active_game.id
                 }
-            )
+            ).fetchone().count
+
+            if balance_exists == 0:
+                conn.execute(
+                    sqlalchemy.text(ADD_INITIAL_BALANCE_QUERY),
+                    {
+                        "user_id": user_id,
+                        "game_id": active_game.id
+                    }
+                )
             
             return GameResponse(
                 id=active_game.id,
