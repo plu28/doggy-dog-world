@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
+from src.api import users
 
 router = APIRouter(
     prefix="/entrants",
@@ -15,7 +16,7 @@ class Entrant(BaseModel):
 
 
 @router.post("/create")
-def create_entrant(entrant: Entrant, username: str):
+def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
@@ -32,15 +33,15 @@ def create_entrant(entrant: Entrant, username: str):
                 FROM entrants
                 JOIN profiles ON profiles.user_id = owner_id
                 INNER JOIN active_game ON active_game.id = game_id
-                AND profiles.username = :username
+                AND profiles.user_id = :user_id
             ) AS response
         )
         INSERT INTO entrants (owner_id, game_id, name, weapon)
         SELECT
             (
-                SELECT user_id
+                SELECT username
                 FROM profiles
-                WHERE username = :username
+                WHERE user_id = :user_id
             ),
             (
                 SELECT id
@@ -58,13 +59,17 @@ def create_entrant(entrant: Entrant, username: str):
     try:
         with db.engine.begin() as con:
             entrant_id = con.execute(create_entrant_query, {
-                'username': username,  'name': entrant.name, 'weapon': entrant.weapon
+                'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
         print(e)
         return {'error': str(e)}
 
-    return {"entrant_id": entrant_id}
+    return {
+        "entrant_id": entrant_id,
+        "entrant_name": entrant.name,
+        "entrant_weapon": entrant.weapon
+    }
 
 
 @router.get('/{entrant_id}')
