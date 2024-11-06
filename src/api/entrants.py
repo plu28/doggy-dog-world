@@ -32,10 +32,11 @@ def create_entrant(entrant: Entrant, username: str):
                 FROM entrants
                 JOIN profiles ON profiles.user_id = owner_id
                 INNER JOIN active_game ON active_game.id = game_id
+                AND profiles.username = :username
             ) AS response
         )
         INSERT INTO entrants (owner_id, game_id, name, weapon)
-        SELECT 
+        SELECT
             (
                 SELECT user_id
                 FROM profiles
@@ -63,7 +64,7 @@ def create_entrant(entrant: Entrant, username: str):
         print(e)
         return {'error': str(e)}
 
-    return entrant_id
+    return {"entrant_id": entrant_id}
 
 
 @router.get('/{entrant_id}')
@@ -76,8 +77,8 @@ def get_entrant_data(entrant_id: int):
             GROUP BY entrants.id
         ),
         leaderboard_stats AS (
-            SELECT 
-                entrants.id AS entrant_id, 
+            SELECT
+                entrants.id AS entrant_id,
                 COUNT(entrant_id) AS matches_won,
 	            DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
             FROM entrants

@@ -5,37 +5,15 @@ import sqlalchemy
 from src import database as db
 import re
 import random
+from src.api.users import get_current_user # middleware for auth
 
 router = APIRouter(
     prefix="/gameplay",
     tags=["gameplay"],
 )
 
-# GET: active game id
-@router.get("/get_games")
-async def active_game():
-    try:
-        with db.engine.begin() as con:
-            select_query = sqlalchemy.text('''
-                SELECT id
-                FROM games
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_games
-                    WHERE game_id = games.id
-                )
-                ''')
-            game_id = con.execute(select_query).scalar_one_or_none()
-        if game_id == None:
-            raise Exception("There are currently no active games.")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
-
-    return {'game_id': game_id}
-
 # GET: active rounds from game id
-@router.get("/get_rounds/{game_id}")
+@router.get("/get_round/{game_id}")
 async def get_active_round(game_id: int):
     try:
         with db.engine.begin() as con:
@@ -114,31 +92,17 @@ async def get_active_match_entrants(match_id: int):
     }
 
 # GET: Returns a user balance for a given user and a game in which they had balance change
-@router.get("/balance/{uuid}/{game_id}")
-async def get_balance(uuid: str, game_id: int):
-    # Make sure uuid is of a valid form (query throws a nasty error otherwise)
-    uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
-    try:
-        if not re.match(uuid_pattern, uuid):
-            raise Exception("Invalid uuid")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
+@router.get("/balance/{game_id}")
+async def get_balance(game_id: int, user = Depends(get_current_user)):
+    uuid = user.user.user_metadata['sub']
 
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
-                WITH game_matches AS (
-                    SELECT matches.id AS matches
-                    FROM matches
-                    JOIN rounds ON rounds.id = matches.round_id
-                    JOIN games ON games.id = rounds.game_id
-                    WHERE games.id = :game_id
-                )
                 SELECT SUM(user_balances.balance_change) AS balance
                 FROM
                     user_balances
-                WHERE match_id IN (SELECT game_matches.matches FROM game_matches)
+                    WHERE game_id = :game_id
                 AND user_id = :uuid
                 ''')
             user_balance = con.execute(select_query, {
@@ -158,25 +122,13 @@ class Bet(BaseModel):
     entrant_id: int
     bet_amount: int
 
-# BUG: Currently has no way to account for initial balances.
-# Insert into bets and user_balances
-# Ensure bet amount is less than or equal to user balance
-# Ensure bet is being placed on an active match
-# Ensure bet is being placed on an entrant in that match
 # NOTE: This current implementation would technically enable a user to place bets an unlimited amount of times.
 #       this could be an issue in the theoretical case where a bad actor wants to run a script to just insert a
 #       bajillion rows into our db.
 #       A potential fix would be to limit one bet, per user, per entrant
-@router.post("/bet/{uuid}/{bet_placement_id}")
-async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
-    # Make sure uuid is of a valid form (query throws a nasty error otherwise)
-    uuid_pattern = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" # chatgpt regex pattern because regex was not made for humans
-    try:
-        if not re.match(uuid_pattern, uuid):
-            raise Exception("Invalid uuid")
-    except Exception as e:
-        print(e)
-        return {'error': str(e)}
+@router.post("/bet/{bet_placement_id}")
+async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
+    uuid = user.user.user_metadata['sub']
 
     if bet.bet_amount == 0:
         return {'error': 'You can not bet 0'}
@@ -219,14 +171,14 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
                 FROM matches
                 JOIN rounds ON rounds.id = matches.round_id
                 JOIN games ON games.id = rounds.game_id
-                WHERE games.id IN (SELECT game_id FROM match_round)
+                WHERE games.id IN (SELECT game_id FROM match_round LIMIT 1)
             ),
             -- Gets the balance of the user placing the bet
             user_balance AS (
                 SELECT SUM(user_balances.balance_change) AS balance
                 FROM
                     user_balances
-                WHERE match_id IN (SELECT game_matches.matches FROM game_matches)
+                WHERE game_id = (SELECT game_id FROM match_round LIMIT 1)
                 AND user_id = :uuid
             ),
             -- Gets the amount the user has already bet
@@ -284,8 +236,8 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
             ''')
 
             insert_into_user_balances_query = sqlalchemy.text(f'''{cte}
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT :uuid, -(:amount), :match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round LIMIT 1)
                 {conditions}
             ''')
 
@@ -307,7 +259,6 @@ async def place_bet(uuid: str, bet_placement_id: int, bet: Bet):
                 'match_id': bet.match_id,
                 'amount': bet.bet_amount,
             }).rowcount
-            print(insert_into_user_balances_status)
             if insert_into_user_balances_status != 1:
                 raise Exception("A concurrency error likely occurred")
 
@@ -613,8 +564,8 @@ def continue_game(game_id: int):
                     AND bets.match_id = (SELECT active_match_id FROM active_match)
                     GROUP BY bets.user_id, bets.match_id
                 )
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
                 FROM winning_user_bet_amounts
             '''
             disburse_entrant_two_won = '''
@@ -628,8 +579,8 @@ def continue_game(game_id: int):
                     WHERE entrant_id = (SELECT entrant_2 FROM active_match)
                     GROUP BY bets.user_id, bets.match_id
                 )
-                INSERT INTO user_balances (user_id, balance_change, match_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id
+                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
                 FROM winning_user_bet_amounts
             '''
 
