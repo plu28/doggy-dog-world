@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
+from psycopg2.errors import UniqueViolation
 from typing import Optional
 import sqlalchemy
 from src import database as db
