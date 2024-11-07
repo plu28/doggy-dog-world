@@ -22,16 +22,16 @@ app = FastAPI(
     },
 )
 
-## Unnecessary at the moment, this allows requests to be made from these origins.
-# origins = ["https://potion-exchange.vercel.app"]
-#
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["GET", "OPTIONS"],
-#     allow_headers=["*"],
-# )
+# Unnecessary at the moment, this allows requests to be made from these origins.
+origins = ["http://localhost:3000"] # Locally hosted frontend, add server frontend later
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 app.include_router(users.router)
 app.include_router(gameplay.router)
