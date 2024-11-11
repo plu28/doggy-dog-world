@@ -38,11 +38,7 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
         )
         INSERT INTO entrants (owner_id, game_id, name, weapon)
         SELECT
-            (
-                SELECT username
-                FROM profiles
-                WHERE user_id = :user_id
-            ),
+            :user_id,
             (
                 SELECT id
                 FROM active_game
