@@ -420,13 +420,13 @@ async def start_game(
             )
             
             # mark game as started (no longer in lobby), i.e. add it to completed_games
-            conn.execute(
-                sqlalchemy.text("""
-                    INSERT INTO completed_games (game_id)
-                    VALUES (:game_id)
-                """),
-                {"game_id": game_id}
-            )
+            # conn.execute(
+            #     sqlalchemy.text("""
+            #         INSERT INTO completed_games (game_id)
+            #         VALUES (:game_id)
+            #     """),
+            #     {"game_id": game_id}
+            # )
             
             return GameStartResponse(
                 game_id=game_id,
