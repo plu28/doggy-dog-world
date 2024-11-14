@@ -15,7 +15,7 @@ class Entrant(BaseModel):
     weapon: str
 
 
-@router.post("/create")
+@router.post("/")
 def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
