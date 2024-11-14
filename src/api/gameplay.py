@@ -11,9 +11,20 @@ router = APIRouter(
     tags=["gameplay"],
 )
 
+# remove async in gameplay.py ~~
+# raise specific status codes instead of printing error
+# refactor bet and continue endpoints
+# make continue_game only accessible to admins
+# make idempotent calls return the same value (without db changes) instead of returning errors
+# add docstrings to your methods
+# dont map to a dictionary
+# get rid of commented out code in gameplay.py
+# add limit to bets endpoint so a user cant spam rows
+# add views where possible
+
 # GET: active rounds from game id
 @router.get("/get_round/{game_id}")
-async def get_active_round(game_id: int):
+def get_active_round(game_id: int):
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -37,7 +48,7 @@ async def get_active_round(game_id: int):
 
 # GET: matches from round id
 @router.get("/active_match/{round_id}")
-async def get_active_match(round_id: int):
+def get_active_match(round_id: int):
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -62,7 +73,7 @@ async def get_active_match(round_id: int):
 
 # GET: retrieve current match entrants from match id
 @router.get("/active_match_entrants/{match_id}")
-async def get_active_match_entrants(match_id: int):
+def get_active_match_entrants(match_id: int):
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -92,7 +103,7 @@ async def get_active_match_entrants(match_id: int):
 
 # GET: Returns a user balance for a given user and a game in which they had balance change
 @router.get("/balance/{game_id}")
-async def get_balance(game_id: int, user = Depends(get_current_user)):
+def get_balance(game_id: int, user = Depends(get_current_user)):
     uuid = user.user.user_metadata['sub']
 
     try:
@@ -126,7 +137,7 @@ class Bet(BaseModel):
 #       bajillion rows into our db.
 #       A potential fix would be to limit one bet, per user, per entrant
 @router.post("/bet/{bet_placement_id}")
-async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
+def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
     uuid = user.user.user_metadata['sub']
 
     if bet.bet_amount == 0:
