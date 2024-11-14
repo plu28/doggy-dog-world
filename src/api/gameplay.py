@@ -12,6 +12,7 @@ router = APIRouter(
 )
 
 # remove async in gameplay.py ~~
+# fix endpoint names
 # raise specific status codes instead of printing error
 # refactor bet and continue endpoints
 # make continue_game only accessible to admins
@@ -23,7 +24,7 @@ router = APIRouter(
 # add views where possible
 
 # GET: active rounds from game id
-@router.get("/get_round/{game_id}")
+@router.get("/round/{game_id}")
 def get_active_round(game_id: int):
     try:
         with db.engine.begin() as con:
@@ -47,7 +48,7 @@ def get_active_round(game_id: int):
     return {'round_id': round_id}
 
 # GET: matches from round id
-@router.get("/active_match/{round_id}")
+@router.get("/match/{round_id}")
 def get_active_match(round_id: int):
     try:
         with db.engine.begin() as con:
@@ -72,7 +73,7 @@ def get_active_match(round_id: int):
 
 
 # GET: retrieve current match entrants from match id
-@router.get("/active_match_entrants/{match_id}")
+@router.get("/entrants/{match_id}")
 def get_active_match_entrants(match_id: int):
     try:
         with db.engine.begin() as con:
