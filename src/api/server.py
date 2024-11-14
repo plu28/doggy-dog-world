@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 import json
 import logging
-import sys
 from starlette.middleware.cors import CORSMiddleware
 from src.api import users, entrants, games, gameplay, leaderboards
 

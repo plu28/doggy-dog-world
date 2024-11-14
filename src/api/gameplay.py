@@ -1,9 +1,8 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
-import re
 import random
 from src.api.users import get_current_user # middleware for auth
 
