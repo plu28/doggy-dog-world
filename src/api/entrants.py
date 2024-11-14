@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
@@ -58,8 +58,10 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
                 'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
-        print(e)
-        return {'error': str(e)}
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create entrant in Supabase"
+        )
 
     return {
         "entrant_id": entrant_id,
@@ -98,9 +100,14 @@ def get_entrant_data(entrant_id: int):
             entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
-                raise Exception('Entrant not found')
+                raise HTTPException(
+                    status_code=500,
+                    detail=f'Could not find entrant with id:{entrant_id}.'
+                )
     except Exception as e:
-        print(e)
-        return {'error': str(e)}
+        raise HTTPException(
+            status_code=500,
+            detail=e,
+        )
 
     return entrant_data
