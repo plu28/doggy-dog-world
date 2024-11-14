@@ -17,6 +17,11 @@ class Entrant(BaseModel):
 
 @router.post("/")
 def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
+    """
+    Given any name and weapon as strings, creates an entrant for the current game.
+    Entrant also will have an owner_id set as the requesting user's id.
+    """
+
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
@@ -72,6 +77,12 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
 
 @router.get('/{entrant_id}')
 def get_entrant_data(entrant_id: int):
+    """
+    Returns the entrant data for a given entrant id.
+    Data includes: id, owner's id, origin game, name, weapon, total bets placed on entrant, max bet placed on entrant,
+    number of matches won, and their position on their game's leaderboard.
+    """
+
     entrant_query = sqlalchemy.text("""
         WITH bet_stats AS (
             SELECT entrants.id AS entrant_id, COALESCE(SUM(amount), 0) AS total_bets, COALESCE(MAX(amount), 0) AS max_bet
