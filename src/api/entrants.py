@@ -95,7 +95,7 @@ def get_entrant_data(entrant_id: int):
 
     try:
         with db.engine.begin() as con:
-            entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).fetchone()
+            entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
                 raise Exception('Entrant not found')
@@ -103,14 +103,4 @@ def get_entrant_data(entrant_id: int):
         print(e)
         return {'error': str(e)}
 
-    return {
-        'entrant_id': entrant_id,
-        'owner_id': entrant_data.owner_id,
-        'origin_game': entrant_data.origin_game,
-        'name': entrant_data.name,
-        'weapon': entrant_data.weapon,
-        'total_bets': entrant_data.total_bets,
-        'max_bet': entrant_data.max_bet,
-        'matches_won': entrant_data.matches_won,
-        'leaderboard_pos': entrant_data.leaderboard_pos,
-    }
+    return entrant_data
