@@ -26,6 +26,9 @@ router = APIRouter(
 # GET: active rounds from game id
 @router.get("/round/{game_id}")
 def get_active_round(game_id: int):
+    """
+    Takes a game_id and returns the current active round for that game
+    """
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -50,6 +53,10 @@ def get_active_round(game_id: int):
 # GET: matches from round id
 @router.get("/match/{round_id}")
 def get_active_match(round_id: int):
+    """
+    Takes a round_id and returns the current active match for that round
+    """
+
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -75,6 +82,9 @@ def get_active_match(round_id: int):
 # GET: retrieve current match entrants from match id
 @router.get("/entrants/{match_id}")
 def get_active_match_entrants(match_id: int):
+    """
+    Takes a match_id and returns the two entrants participating in that match
+    """
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -102,6 +112,9 @@ def get_active_match_entrants(match_id: int):
 # GET: Returns a user balance for a given user and a game in which they had balance change
 @router.get("/balance/{game_id}")
 def get_balance(game_id: int, user = Depends(get_current_user)):
+    """
+    Returns the balance of a user in a game
+    """
     uuid = user.user.user_metadata['sub']
 
     try:
@@ -136,6 +149,17 @@ class Bet(BaseModel):
 #       A potential fix would be to limit one bet, per user, per entrant
 @router.post("/bet/{bet_placement_id}")
 def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
+    """
+    Places a bet for a user on an entrant in a match.
+    Requires
+        - a unique bet_placement_id for idempotency
+        - match_id is active
+        - entrant_id is in the match
+        - bet_amount does not exceed the users balance for that game
+
+    Note that a NEGATIVE bet_amount is ALLOWED and reduces the amount that a user has already bet on an entrant.
+    A negative bet amount must not exceed the amount that a user has currently bet on an entrant.
+    """
     uuid = user.user.user_metadata['sub']
 
     if bet.bet_amount == 0:
@@ -276,6 +300,17 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
 # This is a powerful endpoint and should likely only be accessible by an admin uuid
 @router.post("/{game_id}/continue")
 def continue_game(game_id: int):
+    """
+    Continues a game into its next step.
+    Possible steps:
+        - Create match (for entrants who have yet to play)
+        - Create redemption match (if theres an odd number of entrants, an entrant from the loser pool will be in a match with the odd one out)
+        - End match (a match is in progress)
+            - A match can not be ended if an entrant has no bets
+            - This also disburses all winnings to betters based on a weighted coinflip where the entrant with the greater bet amount is more likely to wi
+        - End round (all entrants have played)
+        - End game (only one winner in the previous round)
+    """
     try:
         with db.engine.begin() as con:
             # Ensure that this game_id is active
@@ -665,6 +700,3 @@ def continue_game(game_id: int):
         print(e)
         return {'error': str(e)}
     return {'status': status}
-
-
-# Get story for a match_id
