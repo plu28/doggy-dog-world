@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, DBAPIError
 from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
@@ -12,13 +12,13 @@ router = APIRouter(
 )
 
 # remove async in gameplay.py ~~
-# fix endpoint names
+# fix endpoint names ~~
 # raise specific status codes instead of printing error
 # refactor bet and continue endpoints
 # make continue_game only accessible to admins
 # make idempotent calls return the same value (without db changes) instead of returning errors
 # add docstrings to your methods
-# dont map to a dictionary
+# dont map to a dictionary ~~
 # get rid of commented out code in gameplay.py
 # add limit to bets endpoint so a user cant spam rows
 # add views where possible
@@ -32,9 +32,9 @@ def get_active_round(game_id: int):
                 SELECT rounds.id AS round, rounds.game_id AS game
                 FROM rounds
                 WHERE NOT EXISTS (
-                  SELECT 1
-                  FROM completed_rounds
-                  WHERE completed_rounds.round_id = rounds.id
+                    SELECT 1
+                    FROM completed_rounds
+                    WHERE completed_rounds.round_id = rounds.id
                 )
                 AND rounds.game_id = :game_id
                 ''')
@@ -94,12 +94,9 @@ def get_active_match_entrants(match_id: int):
         print(e)
         return {'error': str(e)}
 
-    # Map the row to a python dictionary
-    match_dict = match_row._asdict()
-
     return {
-        'entrant1_id': match_dict['entrant_one'],
-        'entrant2_id': match_dict['entrant_two']
+        'entrant1_id': match_row.entrant_one,
+        'entrant2_id': match_row.entrant_two
     }
 
 # GET: Returns a user balance for a given user and a game in which they had balance change
@@ -146,10 +143,10 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
 
     try:
         with db.engine.begin() as con:
-            # NOTE: This transaction is vulnerable to concurrency issues that I don't know how to fix rn
             # NOTE: This query is likely larger than it has to be and should be consolidated at some point
             # NOTE: A lot of this query should probably be a view lmao
             cte = '''
+
             -- Makes round_id and game_id available to the rest of the query.
             -- Table is empty if game_id, round_id, or match_id are not active
             WITH match_round AS (
@@ -175,14 +172,6 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
                     FROM completed_games
                     WHERE completed_games.game_id = rounds.game_id
                 )
-            ),
-            -- Gets the matches relevant to the users balance (dependency)
-            game_matches AS (
-                SELECT matches.id AS matches
-                FROM matches
-                JOIN rounds ON rounds.id = matches.round_id
-                JOIN games ON games.id = rounds.game_id
-                WHERE games.id IN (SELECT game_id FROM match_round LIMIT 1)
             ),
             -- Gets the balance of the user placing the bet
             user_balance AS (
@@ -231,7 +220,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
                 {conditions}
                 -- These conditions can not be shared between the two.
                     -- This query inserts into bets, and this condition checks for the state of bets.
-                    -- This means the state of bets will not be the same between the two queries and the condition will not be the same
+                    -- This means the state of bets will not be the same between the two queries and the condition will not resolve the same
                 -- Ensure that user is not betting an amount less than they've already bet
                 AND NOT EXISTS (
                     SELECT current_bet_amount
@@ -246,7 +235,8 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
                 )
             ''')
 
-            insert_into_user_balances_query = sqlalchemy.text(f'''{cte}
+            insert_into_user_balances_query = sqlalchemy.text(f'''
+                {cte}
                 INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
                 SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round LIMIT 1)
                 {conditions}
@@ -262,7 +252,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
             if insert_into_bets_status > 1:
                 raise Exception("Strange error occured. Placing bet somehow inserted more than 1 row")
             elif insert_into_bets_status < 1:
-                raise Exception("Bet placement failed. Can you afford this bet? Did you bet on an entrant in an active match?")
+                raise Exception("Bet placement failed. Can you afford this bet? Did you bet on an entrant in an active match? Has a bet been placed with the same bet_id?")
 
             insert_into_user_balances_status = con.execute(insert_into_user_balances_query, {
                 'uuid': uuid,
