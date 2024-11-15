@@ -17,7 +17,7 @@ router = APIRouter(
 # refactor bet and continue endpoints
 # make continue_game only accessible to admins
 # make idempotent calls return the same value (without db changes) instead of returning errors
-# add docstrings to your methods
+# add docstrings to your methods ~~
 # dont map to a dictionary ~~
 # get rid of commented out code in gameplay.py
 # add limit to bets endpoint so a user cant spam rows
@@ -167,6 +167,22 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
 
     try:
         with db.engine.begin() as con:
+            # Ensure idempotency. If bet has already been placed, return OK without any db changes
+            idempotency_query = sqlalchemy.text('''
+                -- Ensure the call is idempotent (bet_placement_id doesn't already exist)
+                SELECT 1
+                WHERE EXISTS (
+                    SELECT bet_placement_id
+                    FROM bets
+                    WHERE bet_placement_id = :bet_placement_id
+                )
+            ''')
+
+            result = con.execute(idempotency_query, {'bet_placement_id': bet_placement_id}).scalar_one_or_none()
+            if result != None:
+                print("Bet with existing bet_id attempted")
+                return "OK"
+
             # NOTE: This query is likely larger than it has to be and should be consolidated at some point
             # NOTE: A lot of this query should probably be a view lmao
             cte = '''
@@ -251,12 +267,6 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
                     FROM current_user_bets
                     WHERE current_bet_amount < -(:amount)
                 )
-                -- Ensure the call is idempotent (bet_placement_id doesn't already exist)
-                AND NOT EXISTS (
-                    SELECT bet_placement_id
-                    FROM bets
-                    WHERE bet_placement_id = :bet_placement_id
-                )
             ''')
 
             insert_into_user_balances_query = sqlalchemy.text(f'''
@@ -276,7 +286,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
             if insert_into_bets_status > 1:
                 raise Exception("Strange error occured. Placing bet somehow inserted more than 1 row")
             elif insert_into_bets_status < 1:
-                raise Exception("Bet placement failed. Can you afford this bet? Did you bet on an entrant in an active match? Has a bet been placed with the same bet_id?")
+                raise Exception("Bet placement failed. Can you afford this bet? Did you bet on an entrant in an active match?")
 
             insert_into_user_balances_status = con.execute(insert_into_user_balances_query, {
                 'uuid': uuid,
