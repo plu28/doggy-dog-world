@@ -77,13 +77,19 @@ def get_entrants_leaderboard(game_id):
 @router.get("/users/{game_id}")
 def get_users_leaderboard(game_id):
     """
-    Return the users' username and their total earnings. Order it in descending order
+    Return the users' username and their total earnings in descending order
 
     """
 
     print("game_id = ", game_id)
 
-    sql_to_execute = """
+    validate_game_id = """
+                        SELECT 1
+                        FROM games
+                        WHERE games.id = :game_id
+                       """
+    
+    get_best_betters = """
                         SELECT 
                             username, 
                             SUM(balance_change) AS total_earnings,
@@ -97,22 +103,36 @@ def get_users_leaderboard(game_id):
                         ORDER BY rank, total_earnings DESC
                         LIMIT 10
                     """
-    
-    with db.engine.begin() as connection:
-        users_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).fetchall()
+    try:
+        with db.engine.begin() as connection:
+            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id})
 
-        print("users_leaderboard = ", users_leaderboard)
+            if game_id_exists:
+                users_leaderboard = connection.execute(sqlalchemy.text(get_best_betters), {"game_id" : game_id}).fetchall()
 
-    result = []
+                print("users_leaderboard = ", users_leaderboard)
 
-    for user in users_leaderboard:
-        result.append(
-            {
-                "game_id" : game_id,
-                "rank" : user.rank,
-                "username" : user.username,
-                "total_earnings" : user.total_earnings
-            }
+                result = []
+
+                for user in users_leaderboard:
+                    result.append(
+                        {
+                            "game_id" : game_id,
+                            "rank" : user.rank,
+                            "username" : user.username,
+                            "total_earnings" : user.total_earnings
+                        }
+                    )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Game ID does not exist"
+                )
+    except Exception as e:
+        print(f"User Leaderboard Error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get user leaderboard: {str(e)}"
         )
 
     return result
