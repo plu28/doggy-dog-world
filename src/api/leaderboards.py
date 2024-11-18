@@ -39,7 +39,9 @@ def get_entrants_leaderboard(game_id):
     
     try:
         with db.engine.begin() as connection:
-            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id})
+            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id}).fetchone()
+
+            print("game_id_exists = ", game_id_exists)
 
             if game_id_exists:
                 entrants_leaderboard = connection.execute(sqlalchemy.text(get_best_entrants), {"game_id" : game_id}).fetchall()
@@ -62,6 +64,8 @@ def get_entrants_leaderboard(game_id):
                     status_code=404,
                     detail="Game ID does not exist"
                 )
+    except HTTPException as he:
+        raise he
     except Exception as e:
         print(f"Entrant Leaderboard Error: {str(e)}")
         raise HTTPException(
@@ -105,7 +109,9 @@ def get_users_leaderboard(game_id):
                         """
     try:
         with db.engine.begin() as connection:
-            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id})
+            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id}).fetchone()
+
+            print("game_id_exists = ", game_id_exists)
 
             if game_id_exists:
                 users_leaderboard = connection.execute(sqlalchemy.text(get_best_betters), {"game_id" : game_id}).fetchall()
@@ -127,6 +133,8 @@ def get_users_leaderboard(game_id):
                     status_code=404,
                     detail="Game ID does not exist"
                 )
+    except HTTPException as he:
+        raise he
     except Exception as e:
         print(f"User Leaderboard Error: {str(e)}")
         raise HTTPException(
