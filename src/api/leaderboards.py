@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 import sqlalchemy
 from src import database as db
 
@@ -11,13 +11,19 @@ router = APIRouter(
 def get_entrants_leaderboard(game_id):
 
     """
-    Return the entrants name, weapon and their total wins. Order it in descending order
+    Returns the entrants name, weapon and their total wins in descending order
 
     """
 
     print("game_id = ", game_id)
 
-    sql_to_execute = """
+    validate_game_id = """
+                        SELECT 1
+                        FROM games
+                        WHERE games.id = :game_id
+                       """
+
+    get_best_entrants = """
                         SELECT 
                             entrants.name AS entrant_name, 
                             entrants.weapon AS entrant_weapon, 
@@ -31,22 +37,37 @@ def get_entrants_leaderboard(game_id):
                         LIMIT 10
                     """
     
-    with db.engine.begin() as connection:
-        entrants_leaderboard = connection.execute(sqlalchemy.text(sql_to_execute), {"game_id" : game_id}).fetchall()
+    try:
+        with db.engine.begin() as connection:
+            game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id})
 
-        print("entrants_leaderboard = ", entrants_leaderboard)
+            if game_id_exists:
+                entrants_leaderboard = connection.execute(sqlalchemy.text(get_best_entrants), {"game_id" : game_id}).fetchall()
 
-    result = []
+                print("entrants_leaderboard = ", entrants_leaderboard)
 
-    for entrant in entrants_leaderboard:
-        result.append(
-            {
-                "game_id" : game_id,
-                "rank" : entrant.rank,
-                "total_wins": entrant.total_wins,
-                "entrant_name" : entrant.entrant_name,
-                "entrant_weapon" : entrant.entrant_weapon
-            }
+                result = []
+
+                for entrant in entrants_leaderboard:
+                    result.append(
+                        {
+                            "game_id" : game_id,
+                            "rank" : entrant.rank,
+                            "total_wins": entrant.total_wins,
+                            "entrant_name" : entrant.entrant_name,
+                            "entrant_weapon" : entrant.entrant_weapon
+                        }
+                    )
+            else:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Game ID does not exist"
+                )
+    except Exception as e:
+        print(f"Entrant Leaderboard Error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to get entrant leaderboard: {str(e)}"
         )
 
     return result
