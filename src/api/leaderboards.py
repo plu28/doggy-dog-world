@@ -51,7 +51,6 @@ def get_entrants_leaderboard(game_id):
                 for entrant in entrants_leaderboard:
                     result.append(
                         {
-                            "game_id" : game_id,
                             "rank" : entrant.rank,
                             "total_wins": entrant.total_wins,
                             "entrant_name" : entrant.entrant_name,
@@ -70,7 +69,10 @@ def get_entrants_leaderboard(game_id):
             detail=f"Failed to get entrant leaderboard: {str(e)}"
         )
 
-    return result
+    return {
+        "game_id" : game_id,
+        "result" : result
+    }
 
 @router.get("/users/{game_id}")
 def get_users_leaderboard(game_id):
