@@ -117,7 +117,6 @@ def get_users_leaderboard(game_id):
                 for user in users_leaderboard:
                     result.append(
                         {
-                            "game_id" : game_id,
                             "rank" : user.rank,
                             "username" : user.username,
                             "total_earnings" : user.total_earnings
@@ -135,6 +134,9 @@ def get_users_leaderboard(game_id):
             detail=f"Failed to get user leaderboard: {str(e)}"
         )
 
-    return result
+    return {
+        "game_id" : game_id,
+        "result" : result
+    }
 
 # Future endpoint: An overall leaderboard for users to see their earnings across games instead of game specific
