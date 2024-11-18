@@ -32,10 +32,10 @@ def get_entrants_leaderboard(game_id):
                         FROM entrants
                         JOIN match_victors ON match_victors.entrant_id = entrants.id
                         WHERE entrants.game_id = :game_id
-                        GROUP BY entrants.game_id, entrants.name, entrants.weapon
+                        GROUP BY entrants.name, entrants.weapon
                         ORDER BY rank, total_wins DESC
                         LIMIT 10
-                    """
+                        """
     
     try:
         with db.engine.begin() as connection:
@@ -102,7 +102,7 @@ def get_users_leaderboard(game_id):
                         GROUP BY username
                         ORDER BY rank, total_earnings DESC
                         LIMIT 10
-                    """
+                        """
     try:
         with db.engine.begin() as connection:
             game_id_exists = connection.execute(sqlalchemy.text(validate_game_id), {"game_id" : game_id})
