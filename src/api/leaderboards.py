@@ -25,15 +25,12 @@ def get_entrants_leaderboard(game_id):
 
     get_best_entrants = """
                         SELECT 
-                            entrants.name AS entrant_name, 
-                            entrants.weapon AS entrant_weapon, 
-                            COUNT(match_victors.entrant_id) AS total_wins,
-                            DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
-                        FROM entrants
-                        JOIN match_victors ON match_victors.entrant_id = entrants.id
+                            entrant_name, 
+                            entrant_weapon, 
+                            total_wins,
+                            rank
+                        FROM entrants_leaderboard
                         WHERE entrants.game_id = :game_id
-                        GROUP BY entrants.name, entrants.weapon
-                        ORDER BY rank, total_wins DESC
                         LIMIT 10
                         """
     
@@ -96,15 +93,10 @@ def get_users_leaderboard(game_id):
     get_best_betters = """
                         SELECT 
                             username, 
-                            SUM(balance_change) AS total_earnings,
-                            DENSE_RANK() OVER (ORDER BY SUM(balance_change) DESC) AS rank
-                        FROM profiles
-                        JOIN user_balances ON user_balances.user_id = profiles.user_id
-                        JOIN matches ON matches.id = user_balances.match_id
-                        JOIN rounds ON rounds.id = matches.round_id
+                            total_earnings,
+                            rank
+                        FROM users_leaderboard
                         WHERE rounds.game_id = :game_id
-                        GROUP BY username
-                        ORDER BY rank, total_earnings DESC
                         LIMIT 10
                         """
     try:
@@ -146,5 +138,3 @@ def get_users_leaderboard(game_id):
         "game_id" : game_id,
         "result" : result
     }
-
-# Future endpoint: An overall leaderboard for users to see their earnings across games instead of game specific
