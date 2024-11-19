@@ -25,12 +25,13 @@ def get_entrants_leaderboard(game_id):
 
     get_best_entrants = """
                         SELECT 
+                            game_id,
                             entrant_name, 
                             entrant_weapon, 
                             total_wins,
                             rank
                         FROM entrants_leaderboard
-                        WHERE entrants.game_id = :game_id
+                        WHERE game_id = :game_id
                         LIMIT 10
                         """
     
@@ -91,12 +92,13 @@ def get_users_leaderboard(game_id):
                        """
     
     get_best_betters = """
-                        SELECT 
+                        SELECT
+                            game_id,
                             username, 
                             total_earnings,
                             rank
                         FROM users_leaderboard
-                        WHERE rounds.game_id = :game_id
+                        WHERE game_id = :game_id
                         LIMIT 10
                         """
     try:
