@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
@@ -15,8 +15,13 @@ class Entrant(BaseModel):
     weapon: str
 
 
-@router.post("/create")
+@router.post("/")
 def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
+    """
+    Given any name and weapon as strings, creates an entrant for the current game.
+    Entrant also will have an owner_id set as the requesting user's id.
+    """
+
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
@@ -58,8 +63,10 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
                 'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
-        print(e)
-        return {'error': str(e)}
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create entrant in Supabase"
+        )
 
     return {
         "entrant_id": entrant_id,
@@ -70,6 +77,12 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
 
 @router.get('/{entrant_id}')
 def get_entrant_data(entrant_id: int):
+    """
+    Returns the entrant data for a given entrant id.
+    Data includes: id, owner's id, origin game, name, weapon, total bets placed on entrant, max bet placed on entrant,
+    number of matches won, and their position on their game's leaderboard.
+    """
+
     entrant_query = sqlalchemy.text("""
         WITH bet_stats AS (
             SELECT entrants.id AS entrant_id, COALESCE(SUM(amount), 0) AS total_bets, COALESCE(MAX(amount), 0) AS max_bet
@@ -95,22 +108,17 @@ def get_entrant_data(entrant_id: int):
 
     try:
         with db.engine.begin() as con:
-            entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).fetchone()
+            entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
-                raise Exception('Entrant not found')
+                raise HTTPException(
+                    status_code=500,
+                    detail=f'Could not find entrant with id:{entrant_id}.'
+                )
     except Exception as e:
-        print(e)
-        return {'error': str(e)}
+        raise HTTPException(
+            status_code=500,
+            detail=e,
+        )
 
-    return {
-        'entrant_id': entrant_id,
-        'owner_id': entrant_data.owner_id,
-        'origin_game': entrant_data.origin_game,
-        'name': entrant_data.name,
-        'weapon': entrant_data.weapon,
-        'total_bets': entrant_data.total_bets,
-        'max_bet': entrant_data.max_bet,
-        'matches_won': entrant_data.matches_won,
-        'leaderboard_pos': entrant_data.leaderboard_pos,
-    }
+    return entrant_data
