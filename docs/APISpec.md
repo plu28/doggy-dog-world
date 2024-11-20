@@ -77,7 +77,7 @@
     ```
 
 ### Character Creation
-1. Create a new character - `/users/{user_id}/characters/create` (POST)
+1. Create a new character - `/entrants/` (POST)
    Description: Create a new character for the user
    ##### Request:
    ```json
@@ -94,24 +94,21 @@
         "weapon_description" : "#2 Pencil"
     }
     ```
-2. Get user characters - `/users/{user_id}/characters/` (GET)
+2. Get entrant data - `/entrants/{entrant_id}` (GET)
    Description: Retrieves all characters of a user
     ##### Response:
     ```json
-    [
-        {
-            "character_id" : 3,
-            "character_name" : "Keanu",
-            "weapon_description" : "#2 Pencil"
-        },
-        
-        {
-            "character_id" : 3,
-            "character_name" : "Banana",
-            "weapon_description" : "BANANA!!!"
-        },
-        /* ... */
-    ]
+    {
+      "entrant_id": 32,
+      "owner_id": "d3f9f444-72ca-442d-a0f0-fbd1d0254ffc",
+      "origin_game": 9,
+      "name": "bobo",
+      "weapon": "potions",
+      "total_bets": 2500,
+      "max_bet": 1500,
+      "matches_won": 2,
+      "leaderboard_pos": 1
+    }
     ```
 
 
