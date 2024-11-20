@@ -177,21 +177,22 @@ Description: Returns the top 10 entrants based on their total wins in a game
     ```
     ##### Response
     ```json
-    [
-        {
-            "game_id": 27,
-            "rank": 1
-            "entrant_name": "penguin",
-            "entrant_weapon": "rocket launcher"
-        },
-        {
-            "game_id": 27,
-            "rank": 2
-            "entrant_name": "chihuahua",
-            "entrant_weapon": "butter knife"
-        },
-        ...
-    ]
+    {
+        "game_id" : 27,
+        "result" : [
+            {
+                "rank": 1,
+                "entrant_name": "penguin",
+                "entrant_weapon": "rocket launcher"
+            },
+            {
+                "rank": 2,
+                "entrant_name": "chihuahua",
+                "entrant_weapon": "butter knife"
+            },
+            ...
+        ]
+    }
     ```
     
 2. Get users leaderboard - `/leaderboards/users/{game_id}` (GET)
@@ -204,21 +205,22 @@ Description: Returns the top 10 users based on their total earnings in a game
     ```
     ##### Response
     ```json
-    [
-        {
-            "game_id": 14,
-            "rank": 1
-            "username": "John Doe",
-            "total_earnings": 7996
-        },
-        {
-            "game_id": 14,
-            "rank": 2
-            "username": "Karen Smith",
-            "total_earnings": 6995
-        },
-        ...
-    ]
+    {
+        "game_id" : 14,
+        "result" : [
+            {
+                "rank": 1,
+                "username": "John Doe",
+                "total_earnings": 7996
+            },
+            {
+                "rank": 2,
+                "username": "Karen Smith",
+                "total_earnings": 6995
+            },
+            ...
+        ]
+    }
     ```
 
 ### Match 

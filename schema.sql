@@ -138,3 +138,31 @@ create table
     constraint user_balances_match_id_fkey foreign key (match_id) references matches (id),
     constraint user_balances_user_id_fkey foreign key (user_id) references auth.users (id) on update cascade on delete cascade
   ) tablespace pg_default;
+
+-- Views
+-- entrants_leaderboards
+CREATE VIEW entrants_leaderboard AS (
+    SELECT 
+        entrants.name AS entrant_name, 
+        entrants.weapon AS entrant_weapon, 
+        COUNT(match_victors.entrant_id) AS total_wins,
+        DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
+    FROM entrants
+    JOIN match_victors ON match_victors.entrant_id = entrants.id
+    GROUP BY entrants.name, entrants.weapon
+    ORDER BY rank, total_wins DESC
+)
+
+-- users_leaderboards
+CREATE VIEW users_leaderboard AS (
+    SELECT 
+        username, 
+        SUM(balance_change) AS total_earnings,
+        DENSE_RANK() OVER (ORDER BY SUM(balance_change) DESC) AS rank
+    FROM profiles
+    JOIN user_balances ON user_balances.user_id = profiles.user_id
+    JOIN matches ON matches.id = user_balances.match_id
+    JOIN rounds ON rounds.id = matches.round_id
+    GROUP BY username
+    ORDER BY rank, total_earnings DESC
+)
