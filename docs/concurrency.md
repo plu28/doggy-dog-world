@@ -6,7 +6,7 @@ Criteria:
 - Note, this can be both how a particular transaction definition interacts with other transaction definitions, but also how a transaction definition interacts with other concurrent instances of itself.
 
 1. As user places bet, the match ends
-![CleanShot 2024-11-18 at 17.39.57@2x](https://hackmd.io/_uploads/BJROnwtGyg.png)
+![Diagram 1](./resources/diagram1.png)
 
     - Match reads data as if the bet was not placed
         - Calculates and disburses winnings as if bet was not placed
@@ -19,7 +19,7 @@ Criteria:
 
 
 3. A user creates an entrant as the game starts
-![CleanShot 2024-11-18 at 17.33.30@2x](https://hackmd.io/_uploads/HkJbswtfkl.png)
+![Diagram 2](./resources/diagram2.png)
 
     - User calls to start the game with the current entrants.
     - Another user makes a call to add an entrant and adds another entrant to the entrants table.
@@ -29,7 +29,7 @@ Criteria:
     
 
 3. The game is continued by two different users at once.
-![CleanShot 2024-11-18 at 17.27.34@2x](https://hackmd.io/_uploads/Skzstvtfyl.png)
+![Diagram 3](./resources/diagram3.png)
 
 
     - First call verifies the condition for a match end 
