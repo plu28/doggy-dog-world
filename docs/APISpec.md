@@ -222,18 +222,44 @@ Description: Returns the top 10 users based on their total earnings in a game
     ```
 
 ### Match 
-1. Get battle image - `/matches/{match_id}/battle_image` (GET)
-Description: generates an image of a battle between two entrants
-
-    ##### Response
-    ```json
+1. Generate fight image - `/matches/generate_fight_image` (POST)
+Description: generates an image for a fight between two entrants
+    ##### Request:
     {
-        "image_url" : "https://i.imgur.com/MrdYkbF.jpeg"
+        "entrant1": {
+            "name": "Keanu",
+            "weapon": "#2 Pencil"
+        },
+        "entrant2": {
+            "name": "Banana",
+            "weapon": "BANANA!!!"
+        }
     }
-    ```
+    ##### Response:
+    {
+        "image_url": "https://supabase-bucket/34215.jpeg"
+    }
 
+2. Generate fight story - `/matches/generate_fight_story` (POST)
+Description: generates a story describing the fight between two entrants
+    ##### Request:
+    {
+        "entrant1": {
+            "name": "Keanu",
+            "weapon": "#2 Pencil"
+        },
+        "entrant2": {
+            "name": "Banana",
+            "weapon": "BANANA!!!"
+        },
+        "winner": "Keanu"
+    }
+    ##### Response:
+    {
+        "story": "In an epic showdown, Keanu wielded their mighty #2 Pencil against Banana's fearsome BANANA!!!. After an intense battle..."
+    }
 
-2. Place bets - `/matches/place_bet/{bet_id}` (POST)
+3. Place bets - `/matches/place_bet/{bet_id}` (POST)
 Description: players place their bet up to the max amount of money they have on one of the entrants
 
 
@@ -254,7 +280,7 @@ Description: players place their bet up to the max amount of money they have on 
     ```
 
 
-3. Get winner - `/matches/{match_id}/winner` (GET)
+4. Get winner - `/matches/{match_id}/winner` (GET)
 Description: backend selects a winner, skewed in the favor of the entrant with the most bets
 
     ##### Request
