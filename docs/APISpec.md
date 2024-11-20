@@ -60,21 +60,6 @@
         "balance" : 1000
     }
     ```
-5. Add user balance - `/users/{user_id}/balance/add` (POST)
-   Description: Add to a user's balance
-   ##### Request:
-   ```json
-    {
-        "amount" : 500
-    }
-    ```
-    ##### Response:
-    ```json
-    {
-        "user_id" : 0,
-        "new_balance" : 1500
-    }
-    ```
 
 ### Character Creation
 1. Create a new character - `/users/{user_id}/characters/create` (POST)
@@ -154,18 +139,6 @@ Description: Starts the game session
     }
     ```
 
-
-
-5. Generate a bracket - `/games/generate_bracket` (POST)
-Description: generates a bracket for a given list of entrants
-    
-    ##### Response:
-    ```json
-    {
-        "success" : true
-    }
-    ```
-
 ### Leaderboards
 1. Get entrants leaderboard - `/leaderboards/entrants/{game_id}` (GET)
 Description: Returns the top 10 entrants based on their total wins in a game
@@ -223,10 +196,11 @@ Description: Returns the top 10 users based on their total earnings in a game
     }
     ```
 
-### Match 
+### Match Info
 1. Generate fight image - `/matches/generate_fight_image` (POST)
 Description: generates an image for a fight between two entrants
     ##### Request:
+   ```json
     {
         "entrant1": {
             "name": "Keanu",
@@ -237,14 +211,18 @@ Description: generates an image for a fight between two entrants
             "weapon": "BANANA!!!"
         }
     }
+    ```
     ##### Response:
+    ```json
     {
         "image_url": "https://supabase-bucket/34215.jpeg"
     }
+    ```
 
 2. Generate fight story - `/matches/generate_fight_story` (POST)
 Description: generates a story describing the fight between two entrants
     ##### Request:
+    ```json
     {
         "entrant1": {
             "name": "Keanu",
@@ -256,51 +234,91 @@ Description: generates a story describing the fight between two entrants
         },
         "winner": "Keanu"
     }
+    ```
     ##### Response:
+    ```json
     {
         "story": "In an epic showdown, Keanu wielded their mighty #2 Pencil against Banana's fearsome BANANA!!!. After an intense battle..."
     }
+    ```
 
-3. Place bets - `/matches/place_bet/{bet_id}` (POST)
-Description: players place their bet up to the max amount of money they have on one of the entrants
+### Gameplay
+1. Get active round - `/gameplay/get_round/{game_id}` (GET)
+Description: Gets the currently active round
 
+    ##### Response
+    ```json 
+    {
+        "round_id": 27
+    }
+    ```
+
+1. Get active match - `/gameplay/active_match/{round_id}` (GET)
+Description: Gets the currently active match
+
+    ##### Response
+    ```json 
+    {
+        "match_id": 48
+    }
+    ```
+1. Get active match entrants - `/gameplay/active_match_entrants/{match_id}` (GET)
+Description: Gets the currently active match entrants
+
+    ##### Response
+    ```json 
+    {
+        "entrant_1": 88,
+        "entrant_2": 89
+    }
+    ```
+
+1. Get current balance - `/gameplay/balance/{game_id}` (GET)
+Description: Gets the currently active game balance for user
+
+    ##### Response
+    ```json 
+    {
+        "balance": 1000
+    }
+    ```
+
+<span style="background-color: #b3d9ff; color: black; padding: 4px 8px; border-radius: 4px; font-weight: bold;">COMPLEX ENDPOINT</span>
+
+3. Place bet - `/gameplay/bet/{bet_placement_id}` (POST)
+Description: players place their bet up to the max amount of money they have on one of the entrants. Also allows a user to remove from their existing bet with a negative value.
 
     ##### Request
     ```json 
     {   
-        "bet_amount" : 1000,
-        "user_id" : 0,
-        "entrant_id" : 5
+        "match_id": 0,
+        "entrant_id": 0,
+        "bet_amount": 0
     }
     ```
 
     ##### Response
     ```json 
-    {
-        "success" : true
-    }
+        OK
     ```
 
+<span style="background-color: #b3d9ff; color: black; padding: 4px 8px; border-radius: 4px; font-weight: bold;">COMPLEX ENDPOINT</span>
 
-4. Get winner - `/matches/{match_id}/winner` (GET)
-Description: backend selects a winner, skewed in the favor of the entrant with the most bets
+4. Continue game - `/gameplay/{game_id}/continue` (POST)
+Description: Continues the game into next stage and performs all necessary operations.
 
-    ##### Request
-    ```json
-    {
-        "user_id": 0
-    }
-    ```
+
+    Possible stages:
+        - Create new round
+        - Create new match
+        - End current match
+        - End game
 
     ##### Response
-    ```json
-    {
-        "entrant_name": "Keanu",
-        "entrant_weapon": "#2 pencil",
-        "entrant_pot": 1000,
-        "user_earnings": 100,
-    }
+    ```json 
+    OK
     ```
+
     
 
 
