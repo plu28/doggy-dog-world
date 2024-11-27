@@ -9,6 +9,10 @@ from PIL import Image
 from datetime import datetime
 import re
 from supabase import create_client, Client
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter(
     prefix="/matches",
@@ -16,12 +20,12 @@ router = APIRouter(
 )
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-west-2')
-import os
-supabase = create_client(
-    os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_KEY")
-)
 
+supabase = create_client(
+    os.environ["SUPABASE_URL"],
+    os.environ["SUPABASE_KEY"]
+)
+    
 class EntrantInfo(BaseModel):
     name: str
     weapon: str
@@ -29,19 +33,25 @@ class EntrantInfo(BaseModel):
 class FightImageRequest(BaseModel):
     entrant1: EntrantInfo
     entrant2: EntrantInfo
+    
+class FightStoryRequest(BaseModel):
+    entrant1: EntrantInfo
+    entrant2: EntrantInfo
+    winner: str
+    
+FIGHT_STORY_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+AWS_REGION = 'us-west-2'
 
 @router.post("/generate_fight_image")
 async def generate_fight_image(request: FightImageRequest):
     try:
         prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"
         
-        print("Generating fight image with prompt:", prompt)
         response = bedrock.invoke_model(
             modelId='stability.stable-image-ultra-v1:0',
             body=json.dumps({'prompt': prompt})
         )
         
-        print("Response:", response)
         output_body = json.loads(response["body"].read().decode("utf-8"))
         base64_output_image = output_body["images"][0]
         image_data = base64.b64decode(base64_output_image)
@@ -54,17 +64,13 @@ async def generate_fight_image(request: FightImageRequest):
         # Save locally
         with open(filename, 'wb') as f:
             f.write(image_data)
-            print(f"Saved image to {filename}")
         
-        print("Uploading image to Supabase storage...")
-        # Upload to Supabase storage
         with open(filename, 'rb') as f:
             response = supabase.storage.from_('images').upload(
                 path=filename,
                 file=f,
                 file_options={"content-type": "image/png"}
             )
-            print("Upload response:", response)
             
         image_url = supabase.storage.from_('images').get_public_url(filename)
         
@@ -74,15 +80,6 @@ async def generate_fight_image(request: FightImageRequest):
             status_code=500,
             detail=f"Failed to generate fight image: {str(e)}"
         )
-
-
-class FightStoryRequest(BaseModel):
-    entrant1: EntrantInfo
-    entrant2: EntrantInfo
-    winner: str
-    
-MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-REGION = 'us-west-2'
 
 @router.post("/generate_fight_story")
 async def generate_fight_story(request: FightStoryRequest):
@@ -111,7 +108,7 @@ Make it dramatic and entertaining, incorporating both weapons in creative ways."
 
     try:
         response = bedrock.converse(
-            modelId=MODEL_ID,
+            modelId=FIGHT_STORY_MODEL_ID,
             messages=messages,
             inferenceConfig=inference_config,
         )
