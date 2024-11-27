@@ -39,7 +39,7 @@ class FightStoryRequest(BaseModel):
     entrant2: EntrantInfo
     winner: str
     
-FIGHT_STORY_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+FIGHT_STORY_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 AWS_REGION = 'us-west-2'
 
 @router.post("/generate_fight_image")
