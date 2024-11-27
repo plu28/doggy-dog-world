@@ -4,7 +4,7 @@ from pydantic import ValidationError
 import json
 import logging
 from starlette.middleware.cors import CORSMiddleware
-from src.api import users, entrants, games, gameplay, leaderboards
+from src.api import users, entrants, games, gameplay, leaderboards, matches
 
 description = """
 Doggy Dog World is where we watch the fights of your dreams.
@@ -37,6 +37,7 @@ app.include_router(gameplay.router)
 app.include_router(games.router)
 app.include_router(entrants.router)
 app.include_router(leaderboards.router)
+app.include_router(matches.router)
 
 @app.exception_handler(exceptions.RequestValidationError)
 @app.exception_handler(ValidationError)
