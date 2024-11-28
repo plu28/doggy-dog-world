@@ -111,14 +111,11 @@ def get_entrant_data(entrant_id: int):
             entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f'Could not find entrant with id:{entrant_id}.'
-                )
+                raise Exception(f'Could not find entrant with id:{entrant_id}.')
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=e,
+            detail=str(e),
         )
 
     return entrant_data
