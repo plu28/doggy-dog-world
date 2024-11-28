@@ -39,7 +39,7 @@ class FightStoryRequest(BaseModel):
     entrant2: EntrantInfo
     winner: str
     
-FIGHT_STORY_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
 AWS_REGION = 'us-west-2'
 
 @router.post("/generate_fight_image")
@@ -84,18 +84,32 @@ async def generate_fight_image(request: FightImageRequest):
 @router.post("/generate_fight_story")
 async def generate_fight_story(request: FightStoryRequest):
     """Generates a story describing the fight between two entrants using Claude via AWS Bedrock"""
-    prompt = f"""Write an exciting short story (2-3 paragraphs) about an epic battle between two fighters:
+    prompt = f"""Create an epic battle chronicle in Star Wars opening crawl style:
 
-Fighter 1: {request.entrant1.name} wielding a {request.entrant1.weapon}
-Fighter 2: {request.entrant2.name} wielding a {request.entrant2.weapon}
+    A LEGENDARY DUEL
+    BETWEEN TWO WARRIORS
 
-The winner must be: {request.winner}
+    {request.entrant1.name.upper()} 
+    Armed with: {request.entrant1.weapon}
 
-Make it dramatic and entertaining, incorporating both weapons in creative ways."""
+    VERSUS
+
+    {request.entrant2.name.upper()}
+    Armed with: {request.entrant2.weapon}
+
+    Write an epic 5-7 sentence story that unfolds like a legend, using present tense and cinematic language. The story should:
+
+    1. Start with an atmospheric scene-setting sentence
+    2. Introduce both warriors with their weapons, building tension
+    3. Describe 2-3 dramatic exchanges of combat, showcasing both fighters' skills
+    4. Build to a climactic moment where the tide turns
+    5. End with {request.winner}'s decisive victory
+
+    Keep sentences powerful but not too long, perfect for scrolling text. Focus on visual imagery and dramatic action that brings the battle to life. Your response must start with the words THE BATTLE BEGINS"""
 
     inference_config = {
         "temperature": 0.7,
-        "maxTokens": 4096,
+        "maxTokens": 2048,
         "topP": 0.95,
     }
 
