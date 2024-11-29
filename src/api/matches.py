@@ -4,8 +4,6 @@ import boto3
 import botocore
 import json
 import base64
-import io
-from PIL import Image
 from datetime import datetime
 import re
 from supabase import create_client, Client
@@ -20,12 +18,13 @@ router = APIRouter(
 )
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-west-2')
+bedrock_client = boto3.client('bedrock', region_name='us-west-2')
 
 supabase = create_client(
     os.environ["SUPABASE_URL"],
     os.environ["SUPABASE_KEY"]
 )
-    
+
 class EntrantInfo(BaseModel):
     name: str
     weapon: str
@@ -38,13 +37,56 @@ class FightStoryRequest(BaseModel):
     entrant1: EntrantInfo
     entrant2: EntrantInfo
     winner: str
-    
+
 FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
-AWS_REGION = 'us-west-2'
+GUARDRAIL_ID = "mnblwo1rm60h"
+GUARDRAIL_VERSION = "1"
+
+async def validate_entrant(entrant: EntrantInfo) -> bool:
+    """Validates entrant name and weapon using Bedrock guardrail"""
+    try:
+        # Check name
+        name_response = bedrock.apply_guardrail(
+            guardrailIdentifier=GUARDRAIL_ID,
+            guardrailVersion=GUARDRAIL_VERSION,
+            source='INPUT',
+            content=[{"text": {"text": entrant.name}}]
+        )
+
+        # Check weapon
+        weapon_response = bedrock.apply_guardrail(
+            guardrailIdentifier=GUARDRAIL_ID,
+            guardrailVersion=GUARDRAIL_VERSION,
+            source='INPUT',
+            content=[{"text": {"text": entrant.weapon}}]
+        )
+        
+        # Return True only if both checks pass
+        return (name_response['action'] == 'NONE' and 
+                weapon_response['action'] == 'NONE')
+                
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Guardrail validation failed: {str(e)}"
+        )
 
 @router.post("/generate_fight_image")
 async def generate_fight_image(request: FightImageRequest):
     try:
+        # Validate entrants
+        if not await validate_entrant(request.entrant1):
+            raise HTTPException(
+                status_code=400,
+                detail="Entrant 1 name or weapon contains inappropriate content"
+            )
+            
+        if not await validate_entrant(request.entrant2):
+            raise HTTPException(
+                status_code=400,
+                detail="Entrant 2 name or weapon contains inappropriate content"
+            )
+        
         prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"
         
         response = bedrock.invoke_model(
@@ -75,6 +117,8 @@ async def generate_fight_image(request: FightImageRequest):
         image_url = supabase.storage.from_('images').get_public_url(filename)
         
         return {"image_url": image_url, "local_file": filename}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -83,44 +127,63 @@ async def generate_fight_image(request: FightImageRequest):
 
 @router.post("/generate_fight_story")
 async def generate_fight_story(request: FightStoryRequest):
-    """Generates a story describing the fight between two entrants using Claude via AWS Bedrock"""
-    prompt = f"""Create an epic battle chronicle in Star Wars opening crawl style:
-
-    A LEGENDARY DUEL
-    BETWEEN TWO WARRIORS
-
-    {request.entrant1.name.upper()} 
-    Armed with: {request.entrant1.weapon}
-
-    VERSUS
-
-    {request.entrant2.name.upper()}
-    Armed with: {request.entrant2.weapon}
-
-    Write an epic 5-7 sentence story that unfolds like a legend, using present tense and cinematic language. The story should:
-
-    1. Start with an atmospheric scene-setting sentence
-    2. Introduce both warriors with their weapons, building tension
-    3. Describe 2-3 dramatic exchanges of combat, showcasing both fighters' skills
-    4. Build to a climactic moment where the tide turns
-    5. End with {request.winner}'s decisive victory
-
-    Keep sentences powerful but not too long, perfect for scrolling text. Focus on visual imagery and dramatic action that brings the battle to life. Your response must start with the words THE BATTLE BEGINS"""
-
-    inference_config = {
-        "temperature": 0.7,
-        "maxTokens": 2048,
-        "topP": 0.95,
-    }
-
-    messages = [
-        {
-            "role": "user",
-            "content": [{"text": prompt}]
-        }
-    ]
-
     try:
+        # Validate entrants
+        if not await validate_entrant(request.entrant1):
+            raise HTTPException(
+                status_code=400,
+                detail="Entrant 1 name or weapon contains inappropriate content"
+            )
+            
+        if not await validate_entrant(request.entrant2):
+            raise HTTPException(
+                status_code=400,
+                detail="Entrant 2 name or weapon contains inappropriate content"
+            )
+            
+        # Validate winner name
+        if request.winner not in [request.entrant1.name, request.entrant2.name]:
+            raise HTTPException(
+                status_code=400,
+                detail="Winner must be one of the entrants"
+            )
+
+        prompt = f"""Create an epic battle chronicle in Star Wars opening crawl style:
+
+        A LEGENDARY DUEL
+        BETWEEN TWO WARRIORS
+
+        {request.entrant1.name.upper()} 
+        Armed with: {request.entrant1.weapon}
+
+        VERSUS
+
+        {request.entrant2.name.upper()}
+        Armed with: {request.entrant2.weapon}
+
+        Write an epic 5-7 sentence story that unfolds like a legend, using present tense and cinematic language. The story should:
+
+        1. Start with an atmospheric scene-setting sentence
+        2. Introduce both warriors with their weapons, building tension
+        3. Describe 2-3 dramatic exchanges of combat, showcasing both fighters' skills
+        4. Build to a climactic moment where the tide turns
+        5. End with {request.winner}'s decisive victory
+
+        Keep sentences powerful but not too long, perfect for scrolling text. Focus on visual imagery and dramatic action that brings the battle to life. Your response must start with the words THE BATTLE BEGINS"""
+
+        inference_config = {
+            "temperature": 0.7,
+            "maxTokens": 2048,
+            "topP": 0.95,
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": [{"text": prompt}]
+            }
+        ]
+
         response = bedrock.converse(
             modelId=FIGHT_STORY_MODEL_ID,
             messages=messages,
@@ -128,6 +191,8 @@ async def generate_fight_story(request: FightStoryRequest):
         )
         story = response['output']['message']['content'][0]['text']
         return {"story": story}
+    except HTTPException:
+        raise
     except botocore.exceptions.ClientError as error:
         if error.response['Error']['Code'] == 'AccessDeniedException':
             raise HTTPException(
