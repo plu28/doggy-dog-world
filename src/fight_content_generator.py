@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel
 import boto3
 import botocore
@@ -11,11 +11,6 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-router = APIRouter(
-    prefix="/matches",
-    tags=["matches"],
-)
 
 bedrock = boto3.client('bedrock-runtime', region_name='us-west-2')
 bedrock_client = boto3.client('bedrock', region_name='us-west-2')
@@ -39,54 +34,9 @@ class FightStoryRequest(BaseModel):
     winner: str
 
 FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
-GUARDRAIL_ID = "mnblwo1rm60h"
-GUARDRAIL_VERSION = "1"
 
-async def validate_entrant(entrant: EntrantInfo) -> bool:
-    """Validates entrant name and weapon using Bedrock guardrail"""
-    try:
-        # Check name
-        name_response = bedrock.apply_guardrail(
-            guardrailIdentifier=GUARDRAIL_ID,
-            guardrailVersion=GUARDRAIL_VERSION,
-            source='INPUT',
-            content=[{"text": {"text": entrant.name}}]
-        )
-
-        # Check weapon
-        weapon_response = bedrock.apply_guardrail(
-            guardrailIdentifier=GUARDRAIL_ID,
-            guardrailVersion=GUARDRAIL_VERSION,
-            source='INPUT',
-            content=[{"text": {"text": entrant.weapon}}]
-        )
-        
-        # Return True only if both checks pass
-        return (name_response['action'] == 'NONE' and 
-                weapon_response['action'] == 'NONE')
-                
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Guardrail validation failed: {str(e)}"
-        )
-
-@router.post("/generate_fight_image")
 async def generate_fight_image(request: FightImageRequest):
-    try:
-        # Validate entrants
-        if not await validate_entrant(request.entrant1):
-            raise HTTPException(
-                status_code=400,
-                detail="Entrant 1 name or weapon contains inappropriate content"
-            )
-            
-        if not await validate_entrant(request.entrant2):
-            raise HTTPException(
-                status_code=400,
-                detail="Entrant 2 name or weapon contains inappropriate content"
-            )
-        
+    try: 
         prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"
         
         response = bedrock.invoke_model(
@@ -103,7 +53,6 @@ async def generate_fight_image(request: FightImageRequest):
         name2 = re.sub(r'[^a-zA-Z0-9]', '', request.entrant2.name)
         filename = f"fight_{name1}_vs_{name2}_{timestamp}.png"
         
-        # Save locally
         with open(filename, 'wb') as f:
             f.write(image_data)
         
@@ -125,23 +74,8 @@ async def generate_fight_image(request: FightImageRequest):
             detail=f"Failed to generate fight image: {str(e)}"
         )
 
-@router.post("/generate_fight_story")
 async def generate_fight_story(request: FightStoryRequest):
     try:
-        # Validate entrants
-        if not await validate_entrant(request.entrant1):
-            raise HTTPException(
-                status_code=400,
-                detail="Entrant 1 name or weapon contains inappropriate content"
-            )
-            
-        if not await validate_entrant(request.entrant2):
-            raise HTTPException(
-                status_code=400,
-                detail="Entrant 2 name or weapon contains inappropriate content"
-            )
-            
-        # Validate winner name
         if request.winner not in [request.entrant1.name, request.entrant2.name]:
             raise HTTPException(
                 status_code=400,
@@ -190,7 +124,7 @@ async def generate_fight_story(request: FightStoryRequest):
             inferenceConfig=inference_config,
         )
         story = response['output']['message']['content'][0]['text']
-        return {"story": story}
+        return story
     except HTTPException:
         raise
     except botocore.exceptions.ClientError as error:
