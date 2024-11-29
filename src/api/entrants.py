@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
 from src.api import users
+from ..guardrails import validate_entrant
 
 router = APIRouter(
     prefix="/entrants",
@@ -21,7 +22,12 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     Given any name and weapon as strings, creates an entrant for the current game.
     Entrant also will have an owner_id set as the requesting user's id.
     """
-
+    if not validate_entrant(entrant):
+        raise HTTPException(
+            status_code=400,
+            detail="Entrant name or weapon failed contains inappropriate content."
+        )
+    
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
