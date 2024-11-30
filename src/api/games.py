@@ -106,7 +106,7 @@ VALUES (1000, :user_id, :game_id)
 @router.post("/join", response_model=GameResponse)
 async def join_game(user = Depends(get_current_user)):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # find active game
@@ -182,7 +182,7 @@ async def join_game(user = Depends(get_current_user)):
 @router.get("/current", response_model=Optional[GameStatus])
 async def get_current_game(user = Depends(get_current_user)):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             game = conn.execute(
@@ -285,7 +285,7 @@ async def leave_game(
     user = Depends(get_current_user)
 ):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # verify game is in lobby state and check if user is admin
@@ -361,7 +361,7 @@ async def start_game(
     user = Depends(get_current_user)
 ):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # check if game exists and is in lobby
