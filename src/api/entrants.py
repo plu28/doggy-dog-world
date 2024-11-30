@@ -73,7 +73,7 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create entrant in Supabase"
+            detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
 
     return {
