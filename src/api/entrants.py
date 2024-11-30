@@ -66,21 +66,21 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
     """)
 
     try:
-        with db.engine.begin() as con:
-            entrant_id = con.execute(create_entrant_query, {
+        async with db.async_engine.begin() as con:
+            entrant_id = await con.execute(create_entrant_query, {
                 'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
+
+            return {
+                "entrant_id": entrant_id,
+                "entrant_name": entrant.name,
+                "entrant_weapon": entrant.weapon
+            }
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail="Failed to create entrant in Supabase"
         )
-
-    return {
-        "entrant_id": entrant_id,
-        "entrant_name": entrant.name,
-        "entrant_weapon": entrant.weapon
-    }
 
 
 @router.get('/{entrant_id}')
