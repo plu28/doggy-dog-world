@@ -68,7 +68,7 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     try:
         with db.engine.begin() as con:
             entrant_id = con.execute(create_entrant_query, {
-                'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
+                'user_id': user.user.id,  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
         raise HTTPException(
