@@ -10,6 +10,12 @@ def database_connection_url():
     return os.environ.get("POSTGRES_URI")
 
 
+def database_async_connection_url():
+    dotenv.load_dotenv()
+
+    return os.environ.get("ASYNC_POSTGRES_URI")
+
+
 engine = create_engine(database_connection_url(), pool_pre_ping=True)
-async_engine = create_async_engine(database_connection_url(), pool_pre_ping=True)
+async_engine = create_async_engine(database_async_connection_url(), pool_pre_ping=True)
 
