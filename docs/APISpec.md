@@ -136,6 +136,17 @@ Description: Starts the game session
     }
     ```
 
+4. Get a users game status - `/games/user_status` (GET)
+Description: Returns if a user is in the currently active game and if they are an admin
+
+    ##### Response
+    ```json
+    {
+      "in_lobby": true,
+      "is_admin": true
+    }
+    ```
+
 ### Leaderboards
 1. Get entrants leaderboard - `/leaderboards/entrants/{game_id}` (GET)
 Description: Returns the top 10 entrants based on their total wins in a game
