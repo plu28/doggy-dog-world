@@ -780,7 +780,7 @@ def continue_game(game_id: int):
         return {'error': str(e)}
     return {'status': status}
 
-@router.post("/results/{match_id}")
+@router.get("/{match_id}/results")
 def match_results(match_id: int):
     """
     Returns the id's of the victor and loser entrants for a given match_id
