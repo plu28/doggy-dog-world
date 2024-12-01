@@ -4,11 +4,14 @@ import boto3
 import botocore
 import json
 import base64
+from io import BytesIO
 from datetime import datetime
 import re
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
+from PIL import Image
+
 
 load_dotenv()
 
@@ -97,12 +100,13 @@ async def generate_entrant_image(entrant: EntrantInfo):
         with open(filename, 'wb') as f:
             f.write(image_data)
 
-        with open(filename, 'rb') as f:
-            response = supabase.storage.from_('images').upload(
-                path=filename,
-                file=f,
-                file_options={"content-type": "image/png"}
-            )
+        image_file = BytesIO(image_data)
+
+        response = supabase.storage.from_('images').upload(
+            path=filename,
+            file=image_file.getvalue(),
+            file_options={"content-type": "image/png"}
+        )
 
         image_url = supabase.storage.from_('images').get_public_url(filename)
 
