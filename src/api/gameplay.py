@@ -61,7 +61,7 @@ def bet_info(match_id: int):
 
 
 
-@router.get("/kill/{game_id}")
+@router.post("/kill/{game_id}")
 def kill_game(game_id: int):
     """
     Kills game and all active matches and rounds for given game_id 
