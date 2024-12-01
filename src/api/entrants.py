@@ -107,7 +107,7 @@ def get_entrant_data(entrant_id: int):
             LEFT JOIN match_victors ON entrants.id = entrant_id
             GROUP BY entrants.id
         )
-        SELECT id AS entrant_id, owner_id, game_id AS origin_game, name, weapon, total_bets, max_bet, matches_won, rank AS leaderboard_pos
+        SELECT id AS entrant_id, owner_id, img_url, game_id AS origin_game, name, weapon, total_bets, max_bet, matches_won, rank AS leaderboard_pos
         FROM entrants
         JOIN bet_stats AS bs ON bs.entrant_id = entrants.id
         JOIN leaderboard_stats AS lbs ON lbs.entrant_id = entrants.id
