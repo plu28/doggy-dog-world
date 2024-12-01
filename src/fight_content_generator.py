@@ -76,6 +76,7 @@ async def generate_fight_image(request: FightImageRequest):
 
 
 async def generate_entrant_image(entrant: EntrantInfo):
+    print('Generating entrant image:', entrant)
     try:
         prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"
 
