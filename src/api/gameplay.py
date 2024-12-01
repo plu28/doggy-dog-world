@@ -780,5 +780,37 @@ def continue_game(game_id: int):
         return {'error': str(e)}
     return {'status': status}
 
-
-# Get story for a match_id
+@router.post("/results/{match_id}")
+def match_results(match_id: int):
+    match_results_query = sqlalchemy.text('''
+        WITH match_victor AS (
+            SELECT
+                entrant_id
+            FROM
+                match_victors
+            WHERE match_id = :match_id
+        ),
+        match_loser AS (
+            SELECT
+                entrant_id
+            FROM
+                match_losers
+            WHERE match_id = :match_id
+        )
+        SELECT
+            (SELECT entrant_id FROM match_victor) AS match_victor,
+            (SELECT entrant_id FROM match_loser) AS match_loser
+    ''')
+    try:
+        with db.engine.begin() as con:
+            results = con.execute(match_results_query, {'match_id': match_id}).one_or_none()
+            if results == (None, None):
+                raise Exception("Match not found")
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+    
+    return {
+        'victor': results.match_victor,
+        'loser': results.match_loser
+    }
