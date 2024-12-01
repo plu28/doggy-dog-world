@@ -55,16 +55,13 @@ async def generate_fight_image(request: FightImageRequest):
         name1 = re.sub(r'[^a-zA-Z0-9]', '', request.entrant1.name)
         name2 = re.sub(r'[^a-zA-Z0-9]', '', request.entrant2.name)
         filename = f"fight_{name1}_vs_{name2}_{timestamp}.png"
-        
-        with open(filename, 'wb') as f:
-            f.write(image_data)
-        
-        with open(filename, 'rb') as f:
-            response = supabase.storage.from_('images').upload(
-                path=filename,
-                file=f,
-                file_options={"content-type": "image/png"}
-            )
+
+        image_file = BytesIO(image_data)
+        response = supabase.storage.from_('images').upload(
+            path=filename,
+            file=image_file.getvalue(),
+            file_options={"content-type": "image/png"}
+        )
             
         image_url = supabase.storage.from_('images').get_public_url(filename)
         
@@ -97,11 +94,7 @@ async def generate_entrant_image(entrant: EntrantInfo):
         weapon = re.sub(r'[^a-zA-Z0-9]', '', entrant.weapon)
         filename = f"fight_{name}_w_{weapon}_{timestamp}.png"
 
-        with open(filename, 'wb') as f:
-            f.write(image_data)
-
         image_file = BytesIO(image_data)
-
         response = supabase.storage.from_('images').upload(
             path=filename,
             file=image_file.getvalue(),
