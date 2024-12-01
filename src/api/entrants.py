@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
 from src.api import users
+import asyncio
+from ..guardrails import validate_entrant
 
 router = APIRouter(
     prefix="/entrants",
@@ -21,7 +23,13 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     Given any name and weapon as strings, creates an entrant for the current game.
     Entrant also will have an owner_id set as the requesting user's id.
     """
-
+    validation_result = asyncio.run(validate_entrant(entrant))
+    if not validation_result:
+        raise HTTPException(
+            status_code=400,
+            detail="Entrant name or weapon failed contains inappropriate content."
+        )
+    
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
@@ -60,12 +68,12 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     try:
         with db.engine.begin() as con:
             entrant_id = con.execute(create_entrant_query, {
-                'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
+                'user_id': user.user.id,  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create entrant in Supabase"
+            detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
 
     return {
@@ -111,14 +119,11 @@ def get_entrant_data(entrant_id: int):
             entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f'Could not find entrant with id:{entrant_id}.'
-                )
+                raise Exception(f'Could not find entrant with id:{entrant_id}.')
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=e,
+            detail=str(e),
         )
 
     return entrant_data

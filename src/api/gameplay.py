@@ -93,7 +93,7 @@ async def get_active_match_entrants(match_id: int):
 # GET: Returns a user balance for a given user and a game in which they had balance change
 @router.get("/balance/{game_id}")
 async def get_balance(game_id: int, user = Depends(get_current_user)):
-    uuid = user.user.user_metadata['sub']
+    uuid = user.user.id
 
     try:
         with db.engine.begin() as con:
@@ -127,7 +127,7 @@ class Bet(BaseModel):
 #       A potential fix would be to limit one bet, per user, per entrant
 @router.post("/bet/{bet_placement_id}")
 async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
-    uuid = user.user.user_metadata['sub']
+    uuid = user.user.id
 
     if bet.bet_amount == 0:
         return {'error': 'You can not bet 0'}
