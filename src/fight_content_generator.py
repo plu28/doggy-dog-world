@@ -103,6 +103,8 @@ async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
 
         image_url = supabase.storage.from_('images').get_public_url(filename)
 
+        upload_entrant_image(image_url, entrant_id)
+
         return {"image_url": image_url, "local_file": filename}
     except HTTPException:
         raise
