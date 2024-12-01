@@ -11,6 +11,122 @@ router = APIRouter(
     tags=["gameplay"],
 )
 
+@router.get("/bet_info/{match_id}")
+def bet_info(match_id: int):
+    """
+    For a given match_id, returns the player count in the game
+    and the bet count for that match.
+
+    Note that if a user places multiple bets in one match, bet_count will only count one bet for that user
+    """
+    try:
+        with db.engine.begin() as con:
+            select_query = sqlalchemy.text('''
+            WITH match_game AS (
+                SELECT 
+                    rounds.game_id AS game_id
+                FROM
+                    matches
+                JOIN rounds ON rounds.id = matches.round_id
+                WHERE matches.id = :match_id 
+            ),
+            betters AS (
+                SELECT
+                    COUNT(DISTINCT user_id) AS better_count
+                FROM 
+                    bets
+                WHERE
+                    bets.match_id = :match_id 
+            ),
+            player_count AS (
+                SELECT
+                    COUNT(*) AS player_count
+                FROM
+                    players
+                WHERE game_id = (SELECT game_id FROM match_game LIMIT 1)
+            )
+            SELECT 
+                (SELECT better_count FROM betters), 
+                (SELECT player_count FROM player_count)
+                ''')
+            result = con.execute(select_query, {'match_id': match_id}).fetchone()
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    return {
+        'player_count': result.player_count, 
+        'bet_count': result.better_count
+    }
+
+
+
+@router.get("/kill/{game_id}")
+def kill_game(game_id: int):
+    """
+    Kills game and all active matches and rounds for given game_id 
+    """
+    cte = sqlalchemy.text('''
+        WITH kill_rounds AS (
+            SELECT
+                id 
+            FROM 
+                rounds
+            WHERE
+                rounds.game_id = :game_id
+                AND rounds.id NOT IN (SELECT round_id FROM completed_rounds)
+        ),
+        kill_matches AS (
+            SELECT
+                id
+            FROM
+                matches
+            WHERE
+                matches.round_id IN (SELECT id FROM kill_rounds)
+                AND matches.id NOT IN (SELECT id FROM completed_matches)
+        )
+    ''')
+
+    kill_matches_query = sqlalchemy.text(f'''
+        {cte}
+        INSERT INTO completed_matches (id)
+        SELECT id FROM  kill_matches
+        RETURNING id 
+    ''')
+
+    kill_rounds_query = sqlalchemy.text(f'''
+        {cte}
+        INSERT INTO completed_rounds (round_id)
+        SELECT id FROM kill_rounds
+        RETURNING round_id
+    ''')
+
+
+    kill_game_query = sqlalchemy.text(f'''
+        INSERT INTO completed_games
+        SELECT :game_id
+        RETURNING game_id 
+    ''')
+
+    try:
+        with db.engine.begin() as con:
+            match_killed = con.execute(kill_matches_query, {'game_id': game_id}).fetchone()
+            round_killed = con.execute(kill_rounds_query, {'game_id': game_id}).fetchone()
+            game_killed = con.execute(kill_game_query, {'game_id': game_id}).fetchone()
+            print(f"Match Killed: {match_killed[0]}\nRound Killed: {round_killed[0]}\nGame Killed: {game_killed[0]}")
+    except IntegrityError as e:
+        print(e)
+        return {'error': "attempting to kill a game that does not exist"}
+    except Exception as e:
+        print(e)
+        return {'error': e}
+
+    return "OK"
+
+
+
+
+
 # GET: active rounds from game id
 @router.get("/get_round/{game_id}")
 async def get_active_round(game_id: int):
