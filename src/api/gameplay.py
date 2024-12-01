@@ -11,7 +11,7 @@ router = APIRouter(
     tags=["gameplay"],
 )
 
-@router.get("/bet_info/{match_id}")
+@router.get("/{match_id}/bet_info")
 def bet_info(match_id: int):
     """
     For a given match_id, returns the player count in the game
