@@ -10,8 +10,8 @@ import re
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
-from PIL import Image
-
+import database as db
+import sqlalchemy
 
 load_dotenv()
 
@@ -75,7 +75,7 @@ async def generate_fight_image(request: FightImageRequest):
         )
 
 
-async def generate_entrant_image(entrant: EntrantInfo):
+async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
     print('Generating entrant image:', entrant)
     try:
         prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"
@@ -180,4 +180,23 @@ async def generate_fight_story(request: FightStoryRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate fight story: {str(e)}"
+        )
+
+
+def upload_entrant_image(img_url: str, entrant_id: int):
+    upload_query = sqlalchemy.text("""
+        UPDATE entrants
+        SET img_url = :img_url
+        WHERE id = :entrant_id
+    """)
+
+    try:
+        with db.engine.begin() as con:
+            con.execute(upload_query, {
+                'img_url': img_url, 'entrant_id': entrant_id
+            })
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
