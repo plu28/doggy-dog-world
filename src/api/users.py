@@ -148,18 +148,18 @@ async def read_user_me(user = Depends(get_current_user)):
         with db.engine.begin() as conn:
             result = conn.execute(
                 query,
-                {'user_id': user.user.user_metadata['sub']}  # Changed to access correct ID
+                {'user_id': user.user.id}  # Changed to access correct ID
             ).fetchone()
 
             if result:
                 return {
-                    "id": user.user.user_metadata['sub'],
+                    "id": user.user.id,
                     "email": user.user.email,
                     "username": result.username
                 }
             else:
                 return {
-                    "id": user.user.user_metadata['sub'],
+                    "id": user.user.id,
                     "email": user.user.email,
                     "username": None,
                     "message": "Profile not found"

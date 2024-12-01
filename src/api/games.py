@@ -471,7 +471,7 @@ async def user_status(user = Depends(get_current_user)):
     For the currently active game, returns if the user is in the lobby for that game and also if they are an admin.
     """
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         print(user_id)
         with db.engine.begin() as conn: 
             status = conn.execute(sqlalchemy.text(GET_USER_STATUS_QUERY), {'user_id': user_id}).fetchone()
