@@ -77,10 +77,10 @@ WHERE id = :user_id AND game_id = :game_id
 
 GET_LOBBY_PLAYERS_QUERY = """
 WITH first_player AS (
-    SELECT p.id, p.game_id 
+    SELECT p.player_id, p.id, p.game_id 
     FROM players p 
     WHERE p.game_id = :game_id 
-    ORDER BY p.id 
+    ORDER BY p.player_id 
     LIMIT 1
 )
 SELECT 
@@ -95,10 +95,10 @@ WHERE p.game_id = :game_id
 
 GET_USER_STATUS_QUERY = """
 WITH first_player AS (
-    SELECT p.id, p.game_id 
+    SELECT p.player_id, p.id, p.game_id 
     FROM players p 
     WHERE p.game_id = (SELECT id FROM active_game)
-    ORDER BY p.id 
+    ORDER BY p.player_id 
     LIMIT 1
 )
 SELECT 
@@ -313,10 +313,10 @@ async def leave_game(
             game = conn.execute(
                 sqlalchemy.text("""
                     WITH first_player AS (
-                        SELECT p.id 
+                        SELECT p.player_id, p.id 
                         FROM players p 
                         WHERE p.game_id = :game_id 
-                        ORDER BY p.id 
+                        ORDER BY p.player_id 
                         LIMIT 1
                     )
                     SELECT 
@@ -395,7 +395,7 @@ async def start_game(
                             SELECT p.id 
                             FROM players p 
                             WHERE p.game_id = g.id 
-                            ORDER BY p.id 
+                            ORDER BY p.player_id 
                             LIMIT 1
                         ) as admin_id
                     FROM games g
