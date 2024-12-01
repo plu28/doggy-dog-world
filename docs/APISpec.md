@@ -357,6 +357,24 @@ Description: Kills a game and all active matches and rounds for given game_id
     ```json 
     OK
     ```
+
+6. Get Match Info - `/results/{match_id}`
+Description: Retrieves the victor and loser for a given match_id. Returns the winner and loser id
+
+    ##### Request
+    ```json 
+    {   
+        "match_id": 50
+    }
+    ```
+
+    ##### Response
+    ```json 
+    {
+        "victor": 53,
+        "loser": 54
+    }
+    ```
     
 
 

@@ -782,6 +782,9 @@ def continue_game(game_id: int):
 
 @router.post("/results/{match_id}")
 def match_results(match_id: int):
+    """
+    Returns the id's of the victor and loser entrants for a given match_id
+    """
     match_results_query = sqlalchemy.text('''
         WITH match_victor AS (
             SELECT
