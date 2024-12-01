@@ -74,6 +74,46 @@ async def generate_fight_image(request: FightImageRequest):
             detail=f"Failed to generate fight image: {str(e)}"
         )
 
+
+async def generate_entrant_image(entrant: EntrantInfo):
+    try:
+        prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"
+
+        response = bedrock.invoke_model(
+            modelId='stability.stable-image-ultra-v1:0',
+            body=json.dumps({'prompt': prompt})
+        )
+
+        output_body = json.loads(response["body"].read().decode("utf-8"))
+        base64_output_image = output_body["images"][0]
+        image_data = base64.b64decode(base64_output_image)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        name = re.sub(r'[^a-zA-Z0-9]', '', entrant.name)
+        weapon = re.sub(r'[^a-zA-Z0-9]', '', entrant.weapon)
+        filename = f"fight_{name}_w_{weapon}_{timestamp}.png"
+
+        with open(filename, 'wb') as f:
+            f.write(image_data)
+
+        with open(filename, 'rb') as f:
+            response = supabase.storage.from_('images').upload(
+                path=filename,
+                file=f,
+                file_options={"content-type": "image/png"}
+            )
+
+        image_url = supabase.storage.from_('images').get_public_url(filename)
+
+        return {"image_url": image_url, "local_file": filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate entrant image: {str(e)}"
+        )
+
 async def generate_fight_story(request: FightStoryRequest):
     try:
         if request.winner not in [request.entrant1.name, request.entrant2.name]:
