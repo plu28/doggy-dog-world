@@ -171,22 +171,18 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
             idempotency_query = sqlalchemy.text('''
                 -- Ensure the call is idempotent (bet_placement_id doesn't already exist)
                 SELECT 1
-                WHERE EXISTS (
-                    SELECT bet_placement_id
-                    FROM bets
-                    WHERE bet_placement_id = :bet_placement_id
-                )
+                FROM bets
+                WHERE bet_placement_id = :bet_placement_id
             ''')
 
             result = con.execute(idempotency_query, {'bet_placement_id': bet_placement_id}).scalar_one_or_none()
             if result != None:
-                print("Bet with existing bet_id attempted")
+                print("Idempotency error")
                 return "OK"
 
             # NOTE: This query is likely larger than it has to be and should be consolidated at some point
             # NOTE: A lot of this query should probably be a view lmao
             cte = '''
-
             -- Makes round_id and game_id available to the rest of the query.
             -- Table is empty if game_id, round_id, or match_id are not active
             WITH match_round AS (
