@@ -378,7 +378,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
     return "OK"
 
 @router.post("/{game_id}/continue")
-def continue_game(game_id: int):
+async def continue_game(game_id: int):
     """
     Continues a game into its next step.
     Possible steps:
@@ -438,7 +438,7 @@ def continue_game(game_id: int):
             if step != "start_match()" and step != "end_match()" and step != "start_round()" and step != "start_redemption_match()" and step != "end_game()":
                 raise Exception("Unexpected step function detected")
 
-            info = eval(step)
+            info = await eval(step)
 
             # increment index
             update_index = con.execute(update_index_query)
@@ -452,7 +452,7 @@ def continue_game(game_id: int):
     return info
 
 # continue game helper functions
-def end_game():
+async def end_game():
 
     end_game_query = sqlalchemy.text('''
         INSERT INTO completed_games (game_id)
@@ -737,7 +737,7 @@ async def start_match():
         }
     }
 
-def start_redemption_match():
+async def start_redemption_match():
     start_redemption_match_query = sqlalchemy.text('''
         -- Gets all matches that are apart of a round
         WITH active_round_matches AS (
@@ -787,7 +787,7 @@ def start_redemption_match():
         }
     }
  
-def start_round():
+async def start_round():
 
     start_round_query = sqlalchemy.text('''
         INSERT INTO rounds (game_id, prev_round_id)
