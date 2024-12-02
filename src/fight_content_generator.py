@@ -10,7 +10,7 @@ import re
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
-import database as db
+import src.database as db
 import sqlalchemy
 
 load_dotenv()
