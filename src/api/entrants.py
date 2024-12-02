@@ -90,9 +90,34 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
         "entrant_weapon": entrant.weapon
     }
 
-@router.get('/images/{entrant_id}')
-def get_entrant_image(entrant: Entrant):
-    pass
+
+@router.get("/user/{game_id}")
+def get_user_entrant(game_id: int, user = Depends(users.get_current_user)):
+    """
+    Gets if a user created an entrant for a given game id. If so, returns the entrant data.
+    """
+
+    get_entrant_query = sqlalchemy.text("""
+        SELECT *
+        FROM entrants
+        WHERE owner_id = :user_id and game_id = :game_id
+    """)
+
+    try:
+        with db.engine.begin() as con:
+            entrant = con.execute(get_entrant_query, {
+                'user_id': user.user.id,  'game_id': game_id
+            }).mappings().fetchone()
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to find entrant. Error: " + str(e)
+        )
+
+    return {
+        "created": bool(entrant),
+        "entrant": entrant
+    }
 
 
 @router.get('/{entrant_id}')
@@ -139,3 +164,4 @@ def get_entrant_data(entrant_id: int):
         )
 
     return entrant_data
+
