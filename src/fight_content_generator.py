@@ -39,7 +39,8 @@ class FightStoryRequest(BaseModel):
 FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
 IMAGE_MODEL_ID = "'stability.stable-image-ultra-v1:0'"
 
-async def generate_fight_image(request: FightImageRequest):
+
+async def generate_fight_image(request: FightImageRequest, match_id: int):
     try: 
         prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"[:70]
         
@@ -65,6 +66,8 @@ async def generate_fight_image(request: FightImageRequest):
         )
             
         image_url = supabase.storage.from_('images').get_public_url(filename)
+
+        upload_match_image(image_url, match_id)
         
         return {"image_url": image_url, "local_file": filename}
     except HTTPException:
