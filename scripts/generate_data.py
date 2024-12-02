@@ -1,7 +1,8 @@
 from sqlalchemy import MetaData, Table
 from faker import Faker
 from src import database as db
-
+import os
+import sys
 
 """
     This script generates a database loaded with a realistic row distribution.
@@ -33,7 +34,6 @@ GAMES_TO_SIMULATE = 3000
 
     10 losers: insert into match_losers (10)
     11 winners: insert into match_victors (10)
-
 
     10 players bet PER MATCH:
         insert into bets, (10 * 11 = 110)
