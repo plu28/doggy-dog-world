@@ -481,7 +481,7 @@ def end_game():
     }
     
 
-def end_match():
+async def end_match():
     entrant_one_bet_amount_query = sqlalchemy.text('''
         SELECT
             COALESCE(SUM(bets.amount), 0) AS entrant_one_bets
@@ -629,6 +629,25 @@ def end_match():
         if end_match == None:
             raise Exception("Failed to end match")
 
+    # Get specific entrant data for the ids
+    entrant_query = sqlalchemy.text("""
+        SELECT *
+        FROM entrants
+        WHERE id = :entrant_id
+    """)
+    with db.engine.begin() as con:
+        victor_data = con.execute(sqlalchemy.text(entrant_query), {"entrant_id":  victor.entrant_id}).fetchone()
+        loser_data = con.execute(sqlalchemy.text(entrant_query), {"entrant_id":  loser.entrant_id}).fetchone()
+
+    # Generate match story for the entrants
+    asyncio.create_task(
+        fcg.generate_fight_story(fcg.FightStoryRequest(
+            entrant1=fcg.EntrantInfo(name=victor_data.name, weapon=victor_data.weapon),
+            entrant2=fcg.EntrantInfo(name=loser_data.name, weapon=loser_data.weapon),
+            winner=victor_data.name
+        ), start_match.id)
+    )
+
     return {
         'status': 'end_match',
         'details': {
@@ -642,7 +661,7 @@ def end_match():
     }
 
 
-def start_match():
+async def start_match():
     start_match_query = sqlalchemy.text('''
         -- Gets all matches that are apart of a round
         WITH active_round_matches AS (
