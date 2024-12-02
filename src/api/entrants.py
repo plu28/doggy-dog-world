@@ -91,7 +91,7 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
     }
 
 
-@router.get("/{game_id}")
+@router.get("/user/{game_id}")
 def get_user_entrant(game_id: int, user = Depends(users.get_current_user)):
     """
     Gets if a user created an entrant for a given game id. If so, returns the entrant data.
