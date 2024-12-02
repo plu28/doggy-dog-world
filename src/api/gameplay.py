@@ -111,7 +111,6 @@ def kill_game(game_id: int):
         RETURNING round_id
     ''')
 
-
     kill_game_query = sqlalchemy.text(f'''
         INSERT INTO completed_games
         SELECT :game_id
@@ -120,16 +119,23 @@ def kill_game(game_id: int):
 
     try:
         with db.engine.begin() as con:
+            status = ""
             match_killed = con.execute(kill_matches_query, {'game_id': game_id}).fetchone()
+            if match_killed != None:
+                status = status + f"\nMatch Killed: {match_killed.id}"
             round_killed = con.execute(kill_rounds_query, {'game_id': game_id}).fetchone()
+            if round_killed != None:
+                status = status + f"\nRound Killed: {round_killed.round_id}"
             game_killed = con.execute(kill_game_query, {'game_id': game_id}).fetchone()
-            print(f"Match Killed: {match_killed[0]}\nRound Killed: {round_killed[0]}\nGame Killed: {game_killed[0]}")
+            if game_killed != None:
+                status = status + f"\nGame Killed: {game_killed.game_id}"
     except IntegrityError as e:
         print(e)
         return {'error': "attempting to kill a game that does not exist"}
     except Exception as e:
         print(e)
         return {'error': e}
+    print(status)
 
     return "OK"
 
@@ -225,34 +231,26 @@ def match_results(match_id: int):
         'loser': results.match_loser
     }
 
-@router.get("/entrants/{match_id}")
-def get_active_match_entrants(match_id: int):
+@router.get("/{match_id}")
+def get_match_data(match_id: int):
     """
-    Takes a match_id and returns the two entrants participating in that match
+    Takes a match_id and returns all of its data.
     """
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
-                SELECT entrant_one, entrant_two
+                SELECT *
                 FROM matches
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_matches
-                    WHERE completed_matches.id = matches.id
-                )
                 AND matches.id = :match_id
                 ''')
-            match_row = con.execute(select_query, {'match_id': match_id}).first()
-        if match_row == None:
+            match = con.execute(select_query, {'match_id': match_id}).mappings().fetchone()
+        if not match:
             raise Exception("Match does not exist or match is completed.")
     except Exception as e:
         print(e)
         return {'error': str(e)}
 
-    return {
-        'entrant1_id': match_row.entrant_one,
-        'entrant2_id': match_row.entrant_two
-    }
+    return match
 
 @router.get("/balance/{game_id}")
 def get_balance(game_id: int, user = Depends(get_current_user)):
