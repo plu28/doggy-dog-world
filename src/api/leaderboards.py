@@ -24,14 +24,17 @@ def get_entrants_leaderboard(game_id):
                        """
 
     get_best_entrants = """
-                        SELECT 
-                            game_id,
-                            entrant_name, 
-                            entrant_weapon, 
-                            total_wins,
-                            rank
-                        FROM entrants_leaderboard
+                        SELECT
+                            entrants.game_id,
+                            entrants.name AS entrant_name, 
+                            entrants.weapon AS entrant_weapon, 
+                            COUNT(match_victors.entrant_id) AS total_wins,
+                            DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
+                        FROM entrants
+                        JOIN match_victors ON match_victors.entrant_id = entrants.id
                         WHERE game_id = :game_id
+                        GROUP BY entrants.game_id, entrants.name, entrants.weapon
+                        ORDER BY rank, total_wins DESC
                         LIMIT 10
                         """
     
