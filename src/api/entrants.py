@@ -3,6 +3,10 @@ from pydantic import BaseModel
 import sqlalchemy
 from src import database as db
 from src.api import users
+import asyncio
+from anyio import from_thread
+from ..guardrails import validate_entrant
+from ..fight_content_generator import generate_entrant_image, EntrantInfo
 
 router = APIRouter(
     prefix="/entrants",
@@ -16,12 +20,19 @@ class Entrant(BaseModel):
 
 
 @router.post("/")
-def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
+async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     """
     Given any name and weapon as strings, creates an entrant for the current game.
     Entrant also will have an owner_id set as the requesting user's id.
     """
 
+    validation_result = await validate_entrant(entrant)
+    if not validation_result:
+        raise HTTPException(
+            status_code=400,
+            detail="Entrant name or weapon failed contains inappropriate content."
+        )
+    
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
             SELECT MAX(id) AS id
@@ -60,19 +71,28 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     try:
         with db.engine.begin() as con:
             entrant_id = con.execute(create_entrant_query, {
-                'user_id': user.user.user_metadata['sub'],  'name': entrant.name, 'weapon': entrant.weapon
+                'user_id': user.user.id,  'name': entrant.name, 'weapon': entrant.weapon
             }).scalar_one()
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create entrant in Supabase"
+            detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
+
+    # Generate image for entrant
+    asyncio.create_task(
+        generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)
+    )
 
     return {
         "entrant_id": entrant_id,
         "entrant_name": entrant.name,
         "entrant_weapon": entrant.weapon
     }
+
+@router.get('/images/{entrant_id}')
+def get_entrant_image(entrant: Entrant):
+    pass
 
 
 @router.get('/{entrant_id}')
@@ -99,7 +119,7 @@ def get_entrant_data(entrant_id: int):
             LEFT JOIN match_victors ON entrants.id = entrant_id
             GROUP BY entrants.id
         )
-        SELECT id AS entrant_id, owner_id, game_id AS origin_game, name, weapon, total_bets, max_bet, matches_won, rank AS leaderboard_pos
+        SELECT id AS entrant_id, owner_id, img_url, game_id AS origin_game, name, weapon, total_bets, max_bet, matches_won, rank AS leaderboard_pos
         FROM entrants
         JOIN bet_stats AS bs ON bs.entrant_id = entrants.id
         JOIN leaderboard_stats AS lbs ON lbs.entrant_id = entrants.id
@@ -111,14 +131,11 @@ def get_entrant_data(entrant_id: int):
             entrant_data = con.execute(entrant_query, {'entrant_id': entrant_id}).mappings().fetchone()
 
             if entrant_data is None:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f'Could not find entrant with id:{entrant_id}.'
-                )
+                raise Exception(f'Could not find entrant with id:{entrant_id}.')
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=e,
+            detail=str(e),
         )
 
     return entrant_data
