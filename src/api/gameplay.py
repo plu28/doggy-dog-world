@@ -115,7 +115,7 @@ def get_balance(game_id: int, user = Depends(get_current_user)):
     """
     Returns the balance of a user in a game
     """
-    uuid = user.user.user_metadata['sub']
+    uuid = user.user.id
 
     try:
         with db.engine.begin() as con:
@@ -143,10 +143,6 @@ class Bet(BaseModel):
     entrant_id: int
     bet_amount: int
 
-# NOTE: This current implementation would technically enable a user to place bets an unlimited amount of times.
-#       this could be an issue in the theoretical case where a bad actor wants to run a script to just insert a
-#       bajillion rows into our db.
-#       A potential fix would be to limit one bet, per user, per entrant
 @router.post("/bet/{bet_placement_id}")
 def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
     """
@@ -156,11 +152,8 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
         - match_id is active
         - entrant_id is in the match
         - bet_amount does not exceed the users balance for that game
-
-    Note that a NEGATIVE bet_amount is ALLOWED and reduces the amount that a user has already bet on an entrant.
-    A negative bet amount must not exceed the amount that a user has currently bet on an entrant.
     """
-    uuid = user.user.user_metadata['sub']
+    uuid = user.user.id
 
     if bet.bet_amount == 0:
         return {'error': 'You can not bet 0'}
@@ -180,96 +173,35 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
                 print("Idempotency error")
                 return "OK"
 
-            # NOTE: This query is likely larger than it has to be and should be consolidated at some point
-            # NOTE: A lot of this query should probably be a view lmao
-            cte = '''
-            -- Makes round_id and game_id available to the rest of the query.
-            -- Table is empty if game_id, round_id, or match_id are not active
-            WITH match_round AS (
-                SELECT
-                    rounds.game_id AS game_id,
-                    rounds.id AS round_id
-                FROM
-                    rounds
-                JOIN matches ON matches.round_id = rounds.id
-                -- Ensure the game, round, and match are active
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_matches
-                    WHERE completed_matches.id = :match_id
-                )
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM completed_rounds
-                    WHERE completed_rounds.round_id = rounds.id
-                )
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM completed_games
-                    WHERE completed_games.game_id = rounds.game_id
-                )
-            ),
-            -- Gets the balance of the user placing the bet
-            user_balance AS (
-                SELECT SUM(user_balances.balance_change) AS balance
-                FROM
-                    user_balances
-                WHERE game_id = (SELECT game_id FROM match_round LIMIT 1)
-                AND user_id = :uuid
-            ),
-            -- Gets the amount the user has already bet
-            current_user_bets AS (
-                SELECT SUM(bets.amount) AS current_bet_amount
-                FROM bets
-                WHERE match_id = :match_id
-            )
-            '''
-
             conditions = '''
-            -- Ensure the user is not betting an amount greater than their balance
-            WHERE NOT EXISTS (
-                SELECT balance
-                FROM user_balance
-                WHERE user_balance.balance < :amount
-            )
-            -- Ensure the game/round/match are active
-            AND EXISTS (
-                SELECT 1
-                FROM match_round
-            )
-            -- Ensure entrant is in this match
-            AND EXISTS (
+            -- Make sure match is active
+            WHERE :match_id = (SELECT match FROM active_match)
+            -- Make sure user is in the game
+            AND :uuid IN (SELECT players.id FROM players WHERE players.game_id = (SELECT id FROM active_game))
+            -- Make sure entrant id is in the active_match
+            AND :entrant_id IN (
+                SELECT 
+                    entrant_one 
+                FROM 
+                    active_match
+                UNION ALL
                 SELECT
-                    matches.entrant_one,
-                    matches.entrant_two
+                    entrant_two
                 FROM
-                    matches
-                WHERE (matches.entrant_one = :entrant_id
-                OR matches.entrant_two = :entrant_id)
-                AND matches.id = :match_id
+                    active_match
             )
             '''
 
-            insert_into_bets_query = sqlalchemy.text(f'''{cte}
+            insert_into_bets_query = sqlalchemy.text(f'''
                 INSERT INTO bets (user_id, entrant_id, match_id, amount, bet_placement_id)
                 SELECT :uuid, :entrant_id, :match_id, :amount, :bet_placement_id
                 {conditions}
-                -- These conditions can not be shared between the two.
-                    -- This query inserts into bets, and this condition checks for the state of bets.
-                    -- This means the state of bets will not be the same between the two queries and the condition will not resolve the same
-                -- Ensure that user is not betting an amount less than they've already bet
-                AND NOT EXISTS (
-                    SELECT current_bet_amount
-                    FROM current_user_bets
-                    WHERE current_bet_amount < -(:amount)
-                )
             ''')
 
             insert_into_user_balances_query = sqlalchemy.text(f'''
-                {cte}
+                -- INSERT INTO USER BALANCES
                 INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
-                SELECT :uuid, -(:amount), :match_id, (SELECT game_id FROM match_round LIMIT 1)
-                {conditions}
+                SELECT :uuid, -(:amount), :match_id, (SELECT id FROM active_game)
             ''')
 
             insert_into_bets_status = con.execute(insert_into_bets_query, {
