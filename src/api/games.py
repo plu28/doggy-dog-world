@@ -387,6 +387,7 @@ async def start_game(
                 """),
                 {"game_id": game_id}
             ).fetchone()
+
             
             if not game:
                 raise HTTPException(
@@ -418,15 +419,21 @@ async def start_game(
                     "game_id": game_id
                 }
             )
-            
-            # mark game as started (no longer in lobby), i.e. add it to completed_games
-            # conn.execute(
-            #     sqlalchemy.text("""
-            #         INSERT INTO completed_games (game_id)
-            #         VALUES (:game_id)
-            #     """),
-            #     {"game_id": game_id}
-            # )
+
+            # Get entrants and generate game steps
+            entrants = conn.execute(sqlalchemy.text("""
+                SELECT
+                    COUNT(*) AS entrant_count
+                FROM
+                    entrants
+                WHERE
+                    game_id = (SELECT id FROM active_game)
+            """)).fetchone()
+            if entrants.entrant_count < 2:
+                print("Not enough entrants in this game")
+                raise Exception("At least 2 entrants are required to start the game")
+
+            generate_game_steps(entrants.entrant_count)
             
             return GameStartResponse(
                 game_id=game_id,
@@ -442,3 +449,35 @@ async def start_game(
             status_code=400,
             detail=f"Failed to start game: {str(e)}"
         )
+
+# Helper function to generate game steps. Steps are stored as a list of functions in the db
+# entrants is # of entrants
+def generate_game_steps(entrants):
+
+    # Generates list
+    game_list = []
+    while (entrants != 1):
+        if entrants % 2 == 0:
+            for i in range(0, entrants // 2):
+                game_list.append("start_match()")
+                game_list.append("end_match()")
+            entrants = entrants // 2
+        else:
+            for i in range(0, entrants // 2):
+                game_list.append("start_match()")
+                game_list.append("end_match()")
+            game_list.append("start_redemption_match()")
+            game_list.append("end_match()")
+            entrants = (entrants // 2) + 1
+        if (entrants == 1):
+            game_list.append("end_game()")
+            break
+        game_list.append(f"start_round()")
+
+    # Inserts into db
+    with db.engine.begin() as conn:
+        conn.execute(sqlalchemy.text("""
+            DELETE FROM store_game_steps;
+            INSERT INTO store_game_steps (id, step_list)
+            VALUES (1, :step_list)
+        """), {'step_list': game_list})

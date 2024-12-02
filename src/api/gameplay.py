@@ -14,9 +14,9 @@ router = APIRouter(
 # remove async in gameplay.py ~~
 # fix endpoint names ~~
 # raise specific status codes instead of printing error
-# refactor bet and continue endpoints
-# make continue_game only accessible to admins
-# make idempotent calls return the same value (without db changes) instead of returning errors
+# refactor bet and continue endpoints ~~ 
+# make continue_game only accessible to admins 
+# make idempotent calls return the same value (without db changes) instead of returning errors ~~
 # add docstrings to your methods ~~
 # dont map to a dictionary ~~
 # get rid of commented out code in gameplay.py
@@ -244,397 +244,354 @@ def continue_game(game_id: int):
         - Create match (for entrants who have yet to play)
         - Create redemption match (if theres an odd number of entrants, an entrant from the loser pool will be in a match with the odd one out)
         - End match (a match is in progress)
-            - A match can not be ended if an entrant has no bets
+            - A match with no bets will be decided by a random coinflip.
             - This also disburses all winnings to betters based on a weighted coinflip where the entrant with the greater bet amount is more likely to wi
         - End round (all entrants have played)
         - End game (only one winner in the previous round)
     """
+    game_activity_check_query = sqlalchemy.text('''
+        SELECT 1
+        FROM games
+        WHERE games.id = :game_id
+        AND games.id NOT IN (SELECT game_id FROM completed_games)
+    ''')
+
+    game_start_check_query = sqlalchemy.text('''
+        SELECT 1
+        FROM rounds
+        WHERE rounds.game_id = :game_id
+        AND rounds.prev_round_id IS NULL
+    ''')
+
+    get_step_query = sqlalchemy.text('''
+        SELECT
+            step_list,
+            index
+        FROM
+            store_game_steps
+    ''')
+
+    update_index_query = sqlalchemy.text('''
+        UPDATE store_game_steps
+        SET index = index + 1;
+    ''')
+
     try:
         with db.engine.begin() as con:
             # Ensure that this game_id is active
-            if con.execute(sqlalchemy.text('''
-                SELECT 1
-                FROM games
-                WHERE games.id = :game_id
-                AND games.id NOT IN (SELECT game_id FROM completed_games)
-                '''), {'game_id': game_id}).scalar_one_or_none() == None:
-                    raise Exception("This game is not active.")
+            if con.execute(game_activity_check_query, {'game_id': game_id}).scalar_one_or_none() == None:
+                raise Exception("This game is not active.")
 
+            # Check that this game has started
+            if con.execute(game_start_check_query, {'game_id': game_id}).scalar_one_or_none() == None:
+                raise Exception("This game has not been started yet.")
 
-            # cte of all anonymous tables required for conditions/executions
-            cte = '''
-                -- Gets the current active round for this game
-                WITH active_round AS (
-                    SELECT
-                        rounds.id AS active_round_id,
-                        rounds.prev_round_id
-                    FROM rounds
-                    WHERE rounds.game_id = :game_id
-                    AND rounds.id NOT IN (SELECT round_id FROM completed_rounds)
-                ),
-                -- Gets the current active match from an active round
-                active_match AS (
-                    SELECT matches.id AS active_match_id,
-                    matches.entrant_one AS entrant_1,
-                    matches.entrant_two AS entrant_2
-                    FROM matches
-                    WHERE matches.round_id IN (SELECT active_round_id FROM active_round)
-                    AND matches.id NOT IN (SELECT id FROM completed_matches)
-                ),
-                -- Gets all matches that are apart of a round
-                active_round_matches AS (
-                    SELECT matches.id AS matches
-                    FROM matches
-                    WHERE matches.round_id = (SELECT active_round_id FROM active_round)
-                ),
-                -- Gets entrants that have lost this round
-                active_round_losers AS (
-                    SELECT entrant_id AS losers_id
-                    FROM match_losers
-                    WHERE match_losers.match_id IN (SELECT matches FROM active_round_matches)
-                ),
-                -- Gets entrants that have won this round
-                active_round_victors AS (
-                    SELECT entrant_id AS victors_id
-                    FROM match_victors
-                    WHERE match_victors.match_id IN (SELECT matches FROM active_round_matches)
-                ),
-                -- Gets all the matches from the previous round
-                prev_round_matches AS (
-                    SELECT matches.id AS id
-                    FROM matches
-                    WHERE matches.round_id = (SELECT prev_round_id FROM active_round)
-                ),
-                -- Gets all previous round winners (this is the new pool of entrants)
-                prev_round_winners AS (
-                    SELECT match_victors.entrant_id AS id
-                    FROM match_victors
-                    WHERE match_victors.match_id IN (SELECT id FROM prev_round_matches)
-                ),
-                -- Table of entrants that have not been in a match this round
-                unused_entrants AS (
-                    SELECT
-                        entrants.id AS entrant_id
-                    FROM entrants
-                    WHERE entrants.id NOT IN (SELECT victors_id FROM active_round_victors)
-                    AND entrants.id NOT IN (SELECT losers_id FROM active_round_losers)
-                    AND entrants.game_id = :game_id
-                    -- hack to not remove entrants if prev_round_winners is null (first round)
-                    AND (
-                        (SELECT COUNT(*) FROM prev_round_winners) > 0 AND entrants.id IN (SELECT id FROM prev_round_winners)
-                        OR
-                        (SELECT COUNT(*) FROM prev_round_winners) = 0
-                    )
-                )
-            '''
-            # Check if the game needs to be ended
-            #   Check if a round has ended and if the game is now completed
-            #   game is over if round is ended and it only had 1 winner and 1 loser
-            #   If true: -> end round -> end game
-            check_game_completion = '''
-                -- Checks that there are 0 unused entrants
-                NOT EXISTS (
-                    SELECT 1
-                    FROM unused_entrants
-                )
-                -- Checks that the amount of winners was 1
-                AND EXISTS (
-                    SELECT 1
-                    FROM active_round_victors
-                    GROUP BY 1
-                    HAVING COUNT(active_round_victors.victors_id) = 1
-                )
-                -- Checks that the amount of losers was 1
-                AND EXISTS (
-                    SELECT 1
-                    FROM active_round_losers
-                    GROUP BY 1
-                    HAVING COUNT(active_round_losers.losers_id) = 1
-                )
-            '''
+            # Retrieve step to execute
+            get_step = con.execute(get_step_query).fetchone()
+            if get_step == None:
+                raise Exception("Failed to get step.")
 
-            # Check if a regular round should be started
-            # ASSUME INITIAL ROUND IS CREATED ON GAME CREATION
-            #   There are entrants in the game who are not in winners or losers
-            #   The bottom two and clauses might be irrelevant?
-            #   If true: end round -> create a new round
-            check_round_creation = '''
-                -- Check that there are 0 unused entrants
-                NOT EXISTS (
-                    SELECT 1
-                    FROM unused_entrants
-                )
-                -- Check that there are more than 1 victors
-                AND EXISTS (
-                    SELECT 1
-                    FROM active_round_victors
-                    GROUP BY 1
-                    HAVING COUNT(active_round_victors.victors_id) > 1
-                )
-                -- Check that there are more than 1 losers
-                AND EXISTS (
-                    SELECT 1
-                    FROM active_round_losers
-                    GROUP BY 1
-                    HAVING COUNT(active_round_losers.losers_id) > 1
-                )
-            '''
+            step = get_step.step_list[get_step.index]
 
-            # Check if a redemption match needs to be started
-            #   There is 1 entrant in this round who is not in winners or losers
-            #   There isn't an active match
-            #   If true: create a new match with random loser
-            check_redemption_match = '''
-                -- Checks that there is 1 unused entrant
-                EXISTS (
-                    SELECT 1
-                    FROM unused_entrants
-                    GROUP BY 1
-                    HAVING COUNT(unused_entrants.entrant_id) = 1
-                )
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM active_match
-                )
-            '''
+            # verify step function for safety
+            if step != "start_match()" and step != "end_match()" and step != "start_round()" and step != "start_redemption_match()" and step != "end_game()":
+                raise Exception("Unexpected step function detected")
 
-            # Check if a match needs to be started
-            #   Active round has > 1 entrants not in winners or losers
-            check_match_creation = '''
-                -- Check that there are > 1 unused entrants
-                EXISTS (
-                    SELECT 1
-                    FROM unused_entrants
-                    GROUP BY 1
-                    HAVING COUNT(unused_entrants.entrant_id) > 1
-                )
-                -- Check that a match is not already active
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM active_match
-                )
-            '''
+            status = eval(step)
 
-            # Check if a match needs to be ended
-            #   There is an active match
-            #   Determine winner -> insert into winners -> insert into losers -> disburse winnings -> end match
-            check_match_can_be_ended = '''
-                EXISTS (
-                    SELECT 1
-                    FROM active_match
-                )
-            '''
-
-            end_game = '''
-                INSERT INTO completed_games (game_id)
-                SELECT :game_id
-            '''
-
-            end_active_round = '''
-                INSERT INTO completed_rounds (round_id)
-                SELECT active_round_id FROM active_round
-            '''
-
-            create_round = '''
-                WITH game_rounds AS (
-                    SELECT id
-                    FROM rounds
-                    WHERE game_id = :game_id
-                ),
-                prev_round AS (
-                    SELECT round_id AS prev_round_id
-                    FROM completed_rounds
-                    WHERE round_id IN (SELECT id FROM game_rounds)
-                    ORDER BY completed_at DESC
-                    LIMIT 1
-                )
-                INSERT INTO rounds (game_id, prev_round_id)
-                SELECT
-                    :game_id,
-                    (SELECT prev_round_id FROM prev_round)
-            '''
-
-
-
-            # Create a new match with unused entrant and loser
-            create_redemption_match = '''
-                INSERT INTO matches (round_id, entrant_one, entrant_two)
-                SELECT
-                    (SELECT active_round_id FROM active_round) AS round_id,
-                    (SELECT entrant_id FROM unused_entrants) AS entrant_one,
-                    (SELECT losers_id FROM active_round_losers) AS entrant_two
-            '''
-
-            create_match = '''
-            ,
-            entrant_selection AS (
-                SELECT
-                    entrant_id,
-                    ROW_NUMBER() OVER () AS row_num
-                FROM unused_entrants
-                LIMIT 2
-            )
-                INSERT INTO matches (round_id, entrant_one, entrant_two)
-                SELECT
-                    (SELECT active_round_id FROM active_round) AS round_id,
-                    (SELECT entrant_id FROM entrant_selection WHERE row_num = 1) AS entrant_one,
-                    (SELECT entrant_id FROM entrant_selection WHERE row_num = 2) AS entrant_two
-            '''
-
-            get_entrant_one_bet_amount = '''
-                SELECT
-                    SUM(bets.amount) AS entrant_one_bets
-                FROM bets
-                WHERE
-                    entrant_id = (SELECT entrant_1 FROM active_match)
-                    AND match_id = (SELECT active_match_id FROM active_match)
-            '''
-            get_entrant_two_bet_amount = '''
-                SELECT
-                    SUM(bets.amount) AS entrant_one_bets
-                FROM bets
-                WHERE
-                    entrant_id = (SELECT entrant_2 FROM active_match)
-                    AND match_id = (SELECT active_match_id FROM active_match)
-            '''
-
-            # The following are inserts for entrant one/two winning/losing
-            entrant_one_lost = '''
-                INSERT INTO match_losers (match_id, entrant_id)
-                SELECT
-                    (SELECT active_match_id FROM active_match) AS match_id,
-                    (SELECT entrant_1 FROM active_match) AS entrant_id
-            '''
-            entrant_one_won = '''
-                INSERT INTO match_victors (match_id, entrant_id)
-                SELECT
-                    (SELECT active_match_id FROM active_match) AS match_id,
-                    (SELECT entrant_1 FROM active_match) AS entrant_id
-            '''
-            entrant_two_lost = '''
-                INSERT INTO match_losers (match_id, entrant_id)
-                SELECT
-                    (SELECT active_match_id FROM active_match) AS match_id,
-                    (SELECT entrant_2 FROM active_match) AS entrant_id
-            '''
-            entrant_two_won = '''
-                INSERT INTO match_victors (match_id, entrant_id)
-                SELECT
-                    (SELECT active_match_id FROM active_match) AS match_id,
-                    (SELECT entrant_2 FROM active_match) AS entrant_id
-            '''
-
-
-            # The following queries disburse winnings to user balances
-            disburse_entrant_one_won = '''
-                ,
-                winning_user_bet_amounts AS (
-                    SELECT
-                        bets.user_id AS uuid,
-                        SUM(bets.amount) AS bet_amount,
-                        bets.match_id AS match_id
-                    FROM bets
-                    WHERE entrant_id = (SELECT entrant_1 FROM active_match)
-                    AND bets.match_id = (SELECT active_match_id FROM active_match)
-                    GROUP BY bets.user_id, bets.match_id
-                )
-                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
-                FROM winning_user_bet_amounts
-            '''
-            disburse_entrant_two_won = '''
-                ,
-                winning_user_bet_amounts AS (
-                    SELECT
-                        bets.user_id AS uuid,
-                        SUM(bets.amount) AS bet_amount,
-                        bets.match_id AS match_id
-                    FROM bets
-                    WHERE entrant_id = (SELECT entrant_2 FROM active_match)
-                    GROUP BY bets.user_id, bets.match_id
-                )
-                INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
-                SELECT uuid, bet_amount * :payout_ratio, match_id, :game_id
-                FROM winning_user_bet_amounts
-            '''
-
-            end_match = '''
-                INSERT INTO completed_matches (id)
-                SELECT active_match_id FROM active_match
-            '''
-
-            # This dummy_query will always return 1 column 1 row IFF the where clause returns tue
-            # This is how im checking the state of the db
-            dummy_query = "SELECT 1 WHERE"
-
-            if con.execute(sqlalchemy.text(cte + dummy_query + check_game_completion), {'game_id': game_id}).scalar_one_or_none() == 1:
-                # run game completion
-                con.execute(sqlalchemy.text(cte + end_active_round), {'game_id': game_id})
-                con.execute(sqlalchemy.text(end_game), {'game_id': game_id})
-                status = f"Game {game_id} is completed"
-            elif con.execute(sqlalchemy.text(cte + dummy_query + check_round_creation), {'game_id': game_id}).scalar_one_or_none() == 1:
-                # create a round
-                con.execute(sqlalchemy.text(cte + end_active_round), {'game_id': game_id})
-                con.execute(sqlalchemy.text(create_round), {'game_id': game_id})
-                status = "A new round has started"
-            elif con.execute(sqlalchemy.text(cte + dummy_query + check_match_creation), {'game_id': game_id}).scalar_one_or_none() == 1:
-                # create a new match
-                con.execute(sqlalchemy.text(cte + create_match), {'game_id': game_id})
-                status = "A new match has started"
-            elif con.execute(sqlalchemy.text(cte + dummy_query + check_redemption_match), {'game_id': game_id}).scalar_one_or_none() == 1:
-                # create a redemption match
-                con.execute(sqlalchemy.text(cte + create_redemption_match), {'game_id': game_id})
-                status = "A redemption match has started"
-            elif con.execute(sqlalchemy.text(cte + dummy_query + check_match_can_be_ended), {'game_id': game_id}).scalar_one_or_none() == 1:
-                # Insert into completed_matches
-
-                # end the current match
-                # Get bets on both active entrants
-                entrant_one_bet_amount = con.execute(sqlalchemy.text(cte + get_entrant_one_bet_amount), {'game_id': game_id}).scalar_one()
-                entrant_two_bet_amount = con.execute(sqlalchemy.text(cte + get_entrant_two_bet_amount), {'game_id': game_id}).scalar_one()
-
-                # Ensure that each entrant has at least received a bet
-                if (entrant_one_bet_amount == None):
-                    raise Exception("Unable to end match: entrant_one received no bets")
-                if (entrant_two_bet_amount == None):
-                    raise Exception("Unable to end match: entrant_two received no bets")
-
-                total_bet = entrant_one_bet_amount + entrant_two_bet_amount
-                entrant_one_weight = entrant_one_bet_amount / total_bet
-                entrant_two_weight = entrant_two_bet_amount / total_bet
-
-                # Performs weighted coinflip to determine winner
-                weights = [float(entrant_one_weight), float(entrant_two_weight)]
-                winner = random.choices([1,2], weights = weights, k = 1)[0]
-
-                if winner == 1:
-                    # Insert entrant one into winners, entrant two into losers
-                    print("Entrant 1 won")
-                    con.execute(sqlalchemy.text(cte + entrant_one_won), {'game_id': game_id})
-                    con.execute(sqlalchemy.text(cte + entrant_two_lost), {'game_id': game_id})
-                    # Payout ratio = Total Pool / Total Bet on Winner
-                    payout_ratio = total_bet / entrant_one_bet_amount
-                    # Disburse winnings
-                    con.execute(sqlalchemy.text(cte + disburse_entrant_one_won), {'game_id': game_id, 'payout_ratio': payout_ratio})
-
-                elif winner == 2:
-                    # Insert entrant two into winners, entrant one into losers
-                    print("Entrant 2 won")
-                    con.execute(sqlalchemy.text(cte + entrant_two_won), {'game_id': game_id})
-                    con.execute(sqlalchemy.text(cte + entrant_one_lost), {'game_id': game_id})
-                    # Payout ratio = Total Pool / Total Bet on Winner
-                    payout_ratio = total_bet / entrant_two_bet_amount
-                    # Disburse winnings
-                    con.execute(sqlalchemy.text(cte + disburse_entrant_two_won), {'game_id': game_id, 'payout_ratio': payout_ratio})
-
-                # End the match
-                con.execute(sqlalchemy.text(cte + end_match), {'game_id': game_id})
-                status = "Match has ended and winnings have been disbursed"
-            else:
-                raise Exception("No db state conditions matched. Has an initial round been created for this game?")
-
-
+            # increment index
+            update_index = con.execute(update_index_query)
+            if update_index.rowcount == 0:
+                raise Exception("Failed to update index")
+            
     except Exception as e:
-        print(e)
-        return {'error': str(e)}
-    return {'status': status}
+        print(str(e))
+        return ({'error': str(e)})
+
+    return ({'status': status})
+
+# continue game helper functions
+def end_game():
+
+    end_game_query = sqlalchemy.text('''
+        INSERT INTO completed_games (game_id)
+        SELECT id FROM active_game
+        RETURNING game_id
+    ''')
+    end_round_query = sqlalchemy.text('''
+        INSERT INTO completed_rounds (round_id)
+        SELECT round FROM active_round 
+        RETURNING round_id
+    ''')
+
+    with db.engine.begin() as con:
+        end_round = con.execute(end_round_query).fetchone()
+        if end_round == None:
+            raise Exception("Round not ended successfully")
+        end_game = con.execute(end_game_query).fetchone()
+        if end_game == None:
+            raise Exception("Game not ended successfully")
+    return f"Ended game: {end_game.game_id}" 
+    
+
+def end_match():
+    entrant_one_bet_amount_query = sqlalchemy.text('''
+        SELECT
+            COALESCE(SUM(bets.amount), 0) AS entrant_one_bets
+        FROM bets
+        WHERE
+            entrant_id = (SELECT entrant_one FROM active_match)
+            AND match_id = (SELECT match FROM active_match)
+    ''')
+    entrant_two_bet_amount_query = sqlalchemy.text('''
+        SELECT
+            COALESCE(SUM(bets.amount), 0) AS entrant_one_bets
+        FROM bets
+        WHERE
+            entrant_id = (SELECT entrant_two FROM active_match)
+            AND match_id = (SELECT match FROM active_match)
+    ''')
+
+    # The following are inserts for entrant one/two winning/losing
+    entrant_one_lost_query = sqlalchemy.text('''
+        INSERT INTO match_losers (match_id, entrant_id)
+        SELECT
+            (SELECT match FROM active_match) AS match_id,
+            (SELECT entrant_one FROM active_match) AS entrant_id
+    ''')
+    entrant_one_won_query = sqlalchemy.text('''
+        INSERT INTO match_victors (match_id, entrant_id)
+        SELECT
+            (SELECT match FROM active_match) AS match_id,
+            (SELECT entrant_one FROM active_match) AS entrant_id
+    ''')
+    entrant_two_lost_query = sqlalchemy.text('''
+        INSERT INTO match_losers (match_id, entrant_id)
+        SELECT
+            (SELECT match FROM active_match) AS match_id,
+            (SELECT entrant_two FROM active_match) AS entrant_id
+    ''')
+    entrant_two_won_query = sqlalchemy.text('''
+        INSERT INTO match_victors (match_id, entrant_id)
+        SELECT
+            (SELECT match FROM active_match) AS match_id,
+            (SELECT entrant_two FROM active_match) AS entrant_id
+    ''')
+
+    # The following queries disburse winnings to user balances
+    disburse_entrant_one_won_query = sqlalchemy.text('''
+        WITH winning_user_bet_amounts AS (
+            SELECT
+                bets.user_id AS uuid,
+                SUM(bets.amount) AS bet_amount,
+                bets.match_id AS match_id
+            FROM bets
+            WHERE entrant_id = (SELECT entrant_one FROM active_match)
+            AND bets.match_id = (SELECT match FROM active_match)
+            GROUP BY bets.user_id, bets.match_id
+        )
+        INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+        SELECT uuid, bet_amount * :payout_ratio, match_id, (SELECT id FROM active_game) 
+        FROM winning_user_bet_amounts
+    ''')
+    disburse_entrant_two_won_query = sqlalchemy.text('''
+        WITH winning_user_bet_amounts AS (
+            SELECT
+                bets.user_id AS uuid,
+                SUM(bets.amount) AS bet_amount,
+                bets.match_id AS match_id
+            FROM bets
+            WHERE entrant_id = (SELECT entrant_two FROM active_match)
+            AND bets.match_id = (SELECT match FROM active_match)
+            GROUP BY bets.user_id, bets.match_id
+        )
+        INSERT INTO user_balances (user_id, balance_change, match_id, game_id)
+        SELECT uuid, bet_amount * :payout_ratio, match_id, (SELECT id FROM active_game)
+        FROM winning_user_bet_amounts
+    ''')
+
+    end_match_query = sqlalchemy.text('''
+        INSERT INTO completed_matches (id)
+        SELECT
+            (SELECT match FROM active_match) AS id
+        RETURNING id
+    ''')
+
+    with db.engine.begin() as con:
+        entrant_one_bet_amount = int(con.execute(entrant_one_bet_amount_query).scalar_one())
+        entrant_two_bet_amount = int(con.execute(entrant_two_bet_amount_query).scalar_one())
+
+        total_bet = entrant_one_bet_amount + entrant_two_bet_amount
+
+        if total_bet == 0:
+            # do a regular coinflip
+            print("No bets placed. Winner determined at random")
+            winner = random.choices([1,2], k = 1)[0]
+        else:
+            # do a weighted coinflip
+            entrant_one_weight = entrant_one_bet_amount / total_bet
+            entrant_two_weight = entrant_two_bet_amount / total_bet
+
+            print(f"Winner determined with weighted coinflip.\nEntrant 1 weight: {entrant_one_weight}\nEntrant 2 weight: {entrant_two_weight}")
+
+            weights = [float(entrant_one_weight), float(entrant_two_weight)]
+            winner = random.choices([1,2], weights = weights, k = 1)[0]
+
+        if winner == 1:
+            print("Entrant 1 won")
+
+            # Handle if no bets are placed on either
+            if total_bet != 0:
+                # Payout ratio = Total Pool / Total Bet on Winner
+                payout_ratio = total_bet / entrant_one_bet_amount
+            else:
+                payout_ratio = 1
+
+            entrant_one_won = con.execute(entrant_one_won_query)
+            entrant_two_lost = con.execute(entrant_two_lost_query)
+            disburse_entrant_one = con.execute(disburse_entrant_one_won_query, {'payout_ratio': payout_ratio})
+
+            if disburse_entrant_one.rowcount == 0 and total_bet != 0:
+                raise Exception("Entrant one won disbursement failed")
+            if entrant_one_won.rowcount == 0 or entrant_two_lost.rowcount == 0:
+                raise Exception("Failed to execute winner/loser queries")
+        else:
+            print("Entrant 2 won")
+
+            if total_bet != 0:
+                # Payout ratio = Total Pool / Total Bet on Winner
+                payout_ratio = total_bet / entrant_one_bet_amount
+            else:
+                payout_ratio = 1
+
+            entrant_two_won = con.execute(entrant_two_won_query)
+            entrant_one_lost = con.execute(entrant_one_lost_query)
+            disburse_entrant_two = con.execute(disburse_entrant_two_won_query, {'payout_ratio': payout_ratio})
+
+            if disburse_entrant_two.rowcount == 0 and total_bet != 0:
+                raise Exception("Entrant one won disbursement failed")
+            if entrant_two_won.rowcount == 0 or entrant_one_lost.rowcount == 0:
+                raise Exception("Failed to execute winner/loser queries")
+
+        # End the match
+        end_match = con.execute(end_match_query).fetchone()
+        if end_match == None:
+            raise Exception("Failed to end match")
+
+    return f"Ended match: {end_match.id}. Entrant {winner} won. Payout ratio: {payout_ratio}"
+
+
+def start_match():
+    start_match_query = sqlalchemy.text('''
+        -- Gets all matches that are apart of a round
+        WITH active_round_matches AS (
+            SELECT matches.id AS matches
+            FROM matches
+            WHERE matches.round_id = (SELECT round FROM active_round)
+        ),
+        -- Gets entrants that have lost this round
+        active_round_losers AS (
+            SELECT entrant_id AS losers_id
+            FROM match_losers
+            WHERE match_losers.match_id IN (SELECT matches FROM active_round_matches)
+        ),
+        -- Gets entrants that have won this round
+        active_round_victors AS (
+            SELECT entrant_id AS victors_id
+            FROM match_victors
+            WHERE match_victors.match_id IN (SELECT matches FROM active_round_matches)
+        ),
+        -- Table of entrants that have not been in a match this round
+        unused_entrants AS (
+            SELECT
+                entrants.id AS entrant_id
+            FROM entrants
+            WHERE entrants.id NOT IN (SELECT victors_id FROM active_round_victors)
+            AND entrants.id NOT IN (SELECT losers_id FROM active_round_losers)
+            AND entrants.game_id = (SELECT id FROM active_game)
+        ),
+        entrant_selection AS (
+            SELECT
+                entrant_id,
+                ROW_NUMBER() OVER () AS row_num
+            FROM unused_entrants
+            LIMIT 2
+        )
+            INSERT INTO matches (round_id, entrant_one, entrant_two)
+            SELECT
+                (SELECT round FROM active_round) AS round_id,
+                (SELECT entrant_id FROM entrant_selection WHERE row_num = 1) AS entrant_one,
+                (SELECT entrant_id FROM entrant_selection WHERE row_num = 2) AS entrant_two
+            RETURNING id
+    ''')
+    with db.engine.begin() as con:
+        start_match = con.execute(start_match_query).fetchone()
+        if start_match == None:
+            raise Exception("Match not started successfully")
+    return f"Started match: {start_match.id}" 
+
+def start_redemption_match():
+    start_redemption_match_query = sqlalchemy.text('''
+        -- Gets all matches that are apart of a round
+        WITH active_round_matches AS (
+            SELECT matches.id AS matches
+            FROM matches
+            WHERE matches.round_id = (SELECT round FROM active_round)
+        ),
+        -- Gets entrants that have lost this round
+        active_round_losers AS (
+            SELECT entrant_id AS losers_id
+            FROM match_losers
+            WHERE match_losers.match_id IN (SELECT matches FROM active_round_matches)
+        ),
+        -- Gets entrants that have won this round
+        active_round_victors AS (
+            SELECT entrant_id AS victors_id
+            FROM match_victors
+            WHERE match_victors.match_id IN (SELECT matches FROM active_round_matches)
+        ),
+        -- Table of entrants that have not been in a match this round
+        unused_entrants AS (
+            SELECT
+                entrants.id AS entrant_id
+            FROM entrants
+            WHERE entrants.id NOT IN (SELECT victors_id FROM active_round_victors)
+            AND entrants.id NOT IN (SELECT losers_id FROM active_round_losers)
+            AND entrants.game_id = (SELECT id FROM active_game)
+        )
+        INSERT INTO matches (round_id, entrant_one, entrant_two)
+        SELECT
+            (SELECT round FROM active_round) AS round_id,
+            (SELECT entrant_id FROM unused_entrants) AS entrant_one,
+            (SELECT losers_id FROM active_round_losers) AS entrant_two
+        RETURNING id
+    ''')
+    with db.engine.begin() as con:
+        start_redemption_match = con.execute(start_redemption_match_query).fetchone()
+        if start_redemption_match == None:
+            raise Exception("Redemption match not started successfully")
+    return f"Started redemption match: {start_redemption_match.id}"
+
+def start_round():
+
+    start_round_query = sqlalchemy.text('''
+        INSERT INTO rounds (game_id, prev_round_id)
+        SELECT
+            (SELECT id FROM active_game),
+            (SELECT round_id FROM completed_rounds ORDER BY completed_at DESC LIMIT 1)
+        RETURNING id
+    ''')
+    end_round_query = sqlalchemy.text('''
+        INSERT INTO completed_rounds (round_id)
+        SELECT round FROM active_round 
+        RETURNING round_id
+    ''')
+    with db.engine.begin() as con:
+        end_round = con.execute(end_round_query).fetchone()
+        if end_round == None:
+            raise Exception("Round not ended successfully")
+        start_round = con.execute(start_round_query).fetchone()
+        if start_round == None:
+            raise Exception("Round not started successfully")
+    return f"Started round: {start_round.id}"
+
