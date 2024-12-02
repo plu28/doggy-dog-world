@@ -5,6 +5,8 @@ import sqlalchemy
 from src import database as db
 import random
 from src.api.users import get_current_user # middleware for auth
+import asyncio
+import src.fight_content_generator as fcg
 
 router = APIRouter(
     prefix="/gameplay",
@@ -687,6 +689,25 @@ def start_match():
         start_match = con.execute(start_match_query).fetchone()
         if start_match == None:
             raise Exception("Match not started successfully")
+
+    # Get specific entrant data for the ids
+    with db.engine.begin() as con:
+        entrant_data = con.execute(sqlalchemy.text("""
+            SELECT *
+            FROM entrants
+            WHERE id IN (:entrant_one_id, :entrant_two_id)
+        """), {"entrant_one_id":  start_match.entrant_one, "entrant_two_id": start_match.entrant_two}).fetchall()
+
+    # Generate match image for the entrants
+    entrant_one = entrant_data[0]
+    entrant_two = entrant_data[1]
+    asyncio.create_task(
+        fcg.generate_fight_image(fcg.FightImageRequest(
+            entrant1=fcg.EntrantInfo(name=entrant_one.name, weapon=entrant_one.weapon),
+            entrant2=fcg.EntrantInfo(name=entrant_two.name, weapon=entrant_two.weapon)
+        ), start_match.id)
+    )
+
     return {
         'status': 'new_match',
         'details': {
