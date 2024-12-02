@@ -37,13 +37,14 @@ class FightStoryRequest(BaseModel):
     winner: str
 
 FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
+IMAGE_MODEL_ID = "'stability.stable-image-ultra-v1:0'"
 
 async def generate_fight_image(request: FightImageRequest):
     try: 
-        prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"
+        prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"[:70]
         
         response = bedrock.invoke_model(
-            modelId='stability.stable-image-ultra-v1:0',
+            modelId=IMAGE_MODEL_ID,
             body=json.dumps({'prompt': prompt})
         )
         
@@ -78,10 +79,10 @@ async def generate_fight_image(request: FightImageRequest):
 async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
     print('Generating entrant image:', entrant)
     try:
-        prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"
+        prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"[:70]
 
         response = bedrock.invoke_model(
-            modelId='stability.stable-image-ultra-v1:0',
+            modelId=IMAGE_MODEL_ID,
             body=json.dumps({'prompt': prompt})
         )
 
