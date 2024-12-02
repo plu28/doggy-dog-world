@@ -136,6 +136,17 @@ Description: Starts the game session
     }
     ```
 
+4. Get a users game status - `/games/user_status` (GET)
+Description: Returns if a user is in the currently active game and if they are an admin
+
+    ##### Response
+    ```json
+    {
+      "in_lobby": true,
+      "is_admin": true
+    }
+    ```
+
 ### Leaderboards
 1. Get entrants leaderboard - `/leaderboards/entrants/{game_id}` (GET)
 Description: Returns the top 10 entrants based on their total wins in a game
@@ -299,6 +310,23 @@ Description: players place their bet up to the max amount of money they have on 
         OK
     ```
 
+3. Get Bet Info - `/bet_info/{match_id}`
+Description: For a given match_id, returns the player count in the game and the bet count for that match. Note that if a user places multiple bets in one match, bet_count will only count one bet for that user
+
+    ##### Request
+    ```json 
+    {   
+        "match_id": 22
+    }
+    ```
+
+    ##### Response
+    ```json 
+        "player_count": 3
+        "bet_count": 2
+    ```
+
+
 <span style="background-color: #b3d9ff; color: black; padding: 4px 8px; border-radius: 4px; font-weight: bold;">COMPLEX ENDPOINT</span>
 
 4. Continue game - `/gameplay/{game_id}/continue` (POST)
@@ -316,6 +344,37 @@ Description: Continues the game into next stage and performs all necessary opera
     OK
     ```
 
+5. Kill Game - `/kill/{game_id}`
+Description: Kills a game and all active matches and rounds for given game_id
+    ##### Request
+    ```json 
+    {   
+        "game_id": 22
+    }
+    ```
+
+    ##### Response
+    ```json 
+    OK
+    ```
+
+6. Get Match Info - `/results/{match_id}`
+Description: Retrieves the victor and loser for a given match_id. Returns the winner and loser id
+
+    ##### Request
+    ```json 
+    {   
+        "match_id": 50
+    }
+    ```
+
+    ##### Response
+    ```json 
+    {
+        "victor": 53,
+        "loser": 54
+    }
+    ```
     
 
 

@@ -34,6 +34,10 @@ class GameStartResponse(BaseModel):
     game_id: int
     message: str
     player_count: int
+
+class UserStatus(BaseModel):
+    in_lobby: bool
+    is_admin: bool
     
 # queries
 FIND_ACTIVE_GAME_QUERY = """
@@ -73,10 +77,10 @@ WHERE id = :user_id AND game_id = :game_id
 
 GET_LOBBY_PLAYERS_QUERY = """
 WITH first_player AS (
-    SELECT p.id, p.game_id 
+    SELECT p.player_id, p.id, p.game_id 
     FROM players p 
     WHERE p.game_id = :game_id 
-    ORDER BY p.id 
+    ORDER BY p.player_id 
     LIMIT 1
 )
 SELECT 
@@ -87,6 +91,23 @@ FROM players p
 JOIN profiles pr ON p.id = pr.user_id
 LEFT JOIN first_player fp ON true
 WHERE p.game_id = :game_id
+"""
+
+GET_USER_STATUS_QUERY = """
+WITH first_player AS (
+    SELECT p.player_id, p.id, p.game_id 
+    FROM players p 
+    WHERE p.game_id = (SELECT id FROM active_game)
+    ORDER BY p.player_id 
+    LIMIT 1
+)
+SELECT 
+    (SELECT id FROM active_game) AS game_id,
+    CASE WHEN fp.id = p.id THEN true ELSE false END as is_admin
+FROM players p
+LEFT JOIN first_player fp ON true
+WHERE p.game_id = (SELECT id FROM active_game)
+AND p.id = :user_id
 """
 
 CHECK_IF_USER_HAS_BALANCE_QUERY = """
@@ -106,7 +127,7 @@ VALUES (1000, :user_id, :game_id)
 @router.post("/join", response_model=GameResponse)
 async def join_game(user = Depends(get_current_user)):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # find active game
@@ -182,7 +203,7 @@ async def join_game(user = Depends(get_current_user)):
 @router.get("/current", response_model=Optional[GameStatus])
 async def get_current_game(user = Depends(get_current_user)):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             game = conn.execute(
@@ -285,17 +306,17 @@ async def leave_game(
     user = Depends(get_current_user)
 ):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # verify game is in lobby state and check if user is admin
             game = conn.execute(
                 sqlalchemy.text("""
                     WITH first_player AS (
-                        SELECT p.id 
+                        SELECT p.player_id, p.id 
                         FROM players p 
                         WHERE p.game_id = :game_id 
-                        ORDER BY p.id 
+                        ORDER BY p.player_id 
                         LIMIT 1
                     )
                     SELECT 
@@ -352,7 +373,36 @@ async def leave_game(
             status_code=400,
             detail=f"Failed to leave game: {str(e)}"
         )
-    
+
+# get a users game status
+@router.get("/user_status", response_model=UserStatus)
+async def user_status(user = Depends(get_current_user)):
+    """
+    For the currently active game, returns if the user is in the lobby for that game and also if they are an admin.
+    """
+    try:
+        user_id = user.user.id
+        print(user_id)
+        with db.engine.begin() as conn: 
+            status = conn.execute(sqlalchemy.text(GET_USER_STATUS_QUERY), {'user_id': user_id}).fetchone()
+            if not status:
+                return UserStatus(
+                    in_lobby=False,
+                    is_admin=False
+                )
+            else:
+                return UserStatus(
+                    in_lobby=True,
+                    is_admin=status.is_admin
+                )
+    except Exception as e:
+        print(str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve user status: {str(e)}"
+        )
+
+        
 # start a game
 # only the admin (first player to join) can start the game
 @router.post("/{game_id}/start", response_model=GameStartResponse)
@@ -361,7 +411,7 @@ async def start_game(
     user = Depends(get_current_user)
 ):
     try:
-        user_id = user.user.user_metadata['sub']
+        user_id = user.user.id
         
         with db.engine.begin() as conn:
             # check if game exists and is in lobby
@@ -374,7 +424,7 @@ async def start_game(
                             SELECT p.id 
                             FROM players p 
                             WHERE p.game_id = g.id 
-                            ORDER BY p.id 
+                            ORDER BY p.player_id 
                             LIMIT 1
                         ) as admin_id
                     FROM games g
@@ -387,6 +437,7 @@ async def start_game(
                 """),
                 {"game_id": game_id}
             ).fetchone()
+
             
             if not game:
                 raise HTTPException(
@@ -418,15 +469,21 @@ async def start_game(
                     "game_id": game_id
                 }
             )
-            
-            # mark game as started (no longer in lobby), i.e. add it to completed_games
-            # conn.execute(
-            #     sqlalchemy.text("""
-            #         INSERT INTO completed_games (game_id)
-            #         VALUES (:game_id)
-            #     """),
-            #     {"game_id": game_id}
-            # )
+
+            # Get entrants and generate game steps
+            entrants = conn.execute(sqlalchemy.text("""
+                SELECT
+                    COUNT(*) AS entrant_count
+                FROM
+                    entrants
+                WHERE
+                    game_id = (SELECT id FROM active_game)
+            """)).fetchone()
+            if entrants.entrant_count < 2:
+                print("Not enough entrants in this game")
+                raise Exception("At least 2 entrants are required to start the game")
+
+            generate_game_steps(entrants.entrant_count)
             
             return GameStartResponse(
                 game_id=game_id,
@@ -442,3 +499,35 @@ async def start_game(
             status_code=400,
             detail=f"Failed to start game: {str(e)}"
         )
+
+# Helper function to generate game steps. Steps are stored as a list of functions in the db
+# entrants is # of entrants
+def generate_game_steps(entrants):
+
+    # Generates list
+    game_list = []
+    while (entrants != 1):
+        if entrants % 2 == 0:
+            for i in range(0, entrants // 2):
+                game_list.append("start_match()")
+                game_list.append("end_match()")
+            entrants = entrants // 2
+        else:
+            for i in range(0, entrants // 2):
+                game_list.append("start_match()")
+                game_list.append("end_match()")
+            game_list.append("start_redemption_match()")
+            game_list.append("end_match()")
+            entrants = (entrants // 2) + 1
+        if (entrants == 1):
+            game_list.append("end_game()")
+            break
+        game_list.append(f"start_round()")
+
+    # Inserts into db
+    with db.engine.begin() as conn:
+        conn.execute(sqlalchemy.text("""
+            DELETE FROM store_game_steps;
+            INSERT INTO store_game_steps (id, step_list)
+            VALUES (1, :step_list)
+        """), {'step_list': game_list})
