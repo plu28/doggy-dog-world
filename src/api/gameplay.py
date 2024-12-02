@@ -13,17 +13,16 @@ router = APIRouter(
 
 # remove async in gameplay.py ~~
 # fix endpoint names ~~
-# raise specific status codes instead of printing error
+# raise specific status codes instead of printing error ~~ not important do it later 
 # refactor bet and continue endpoints ~~ 
 # make continue_game only accessible to admins 
 # make idempotent calls return the same value (without db changes) instead of returning errors ~~
 # add docstrings to your methods ~~
 # dont map to a dictionary ~~
-# get rid of commented out code in gameplay.py
-# add limit to bets endpoint so a user cant spam rows
-# add views where possible
+# get rid of commented out code in gameplay.py ~~
+# add limit to bets endpoint so a user cant spam rows ~~ frontend does this
+# add views where possible ~~
 
-# GET: active rounds from game id
 @router.get("/round/{game_id}")
 def get_active_round(game_id: int):
     """
@@ -32,6 +31,7 @@ def get_active_round(game_id: int):
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
+                SELECT round FROM active_round
                 SELECT rounds.id AS round, rounds.game_id AS game
                 FROM rounds
                 WHERE NOT EXISTS (
@@ -50,7 +50,6 @@ def get_active_round(game_id: int):
 
     return {'round_id': round_id}
 
-# GET: matches from round id
 @router.get("/match/{round_id}")
 def get_active_match(round_id: int):
     """
@@ -79,7 +78,6 @@ def get_active_match(round_id: int):
     return {'match_id': match_id}
 
 
-# GET: retrieve current match entrants from match id
 @router.get("/entrants/{match_id}")
 def get_active_match_entrants(match_id: int):
     """
@@ -109,7 +107,6 @@ def get_active_match_entrants(match_id: int):
         'entrant2_id': match_row.entrant_two
     }
 
-# GET: Returns a user balance for a given user and a game in which they had balance change
 @router.get("/balance/{game_id}")
 def get_balance(game_id: int, user = Depends(get_current_user)):
     """
@@ -233,9 +230,6 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
 
     return "OK"
 
-# POST: continue game flow
-# Looks at the current status of a game and then performs necessary actions to keep the game going
-# This is a powerful endpoint and should likely only be accessible by an admin uuid
 @router.post("/{game_id}/continue")
 def continue_game(game_id: int):
     """
