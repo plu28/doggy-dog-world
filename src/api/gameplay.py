@@ -111,7 +111,6 @@ def kill_game(game_id: int):
         RETURNING round_id
     ''')
 
-
     kill_game_query = sqlalchemy.text(f'''
         INSERT INTO completed_games
         SELECT :game_id
@@ -120,16 +119,23 @@ def kill_game(game_id: int):
 
     try:
         with db.engine.begin() as con:
+            status = ""
             match_killed = con.execute(kill_matches_query, {'game_id': game_id}).fetchone()
+            if match_killed != None:
+                status = status + f"\nMatch Killed: {match_killed.id}"
             round_killed = con.execute(kill_rounds_query, {'game_id': game_id}).fetchone()
+            if round_killed != None:
+                status = status + f"\nRound Killed: {round_killed.round_id}"
             game_killed = con.execute(kill_game_query, {'game_id': game_id}).fetchone()
-            print(f"Match Killed: {match_killed[0]}\nRound Killed: {round_killed[0]}\nGame Killed: {game_killed[0]}")
+            if game_killed != None:
+                status = status + f"\nGame Killed: {game_killed.game_id}"
     except IntegrityError as e:
         print(e)
         return {'error': "attempting to kill a game that does not exist"}
     except Exception as e:
         print(e)
         return {'error': e}
+    print(status)
 
     return "OK"
 
