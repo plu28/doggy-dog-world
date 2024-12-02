@@ -4,11 +4,14 @@ import boto3
 import botocore
 import json
 import base64
+from io import BytesIO
 from datetime import datetime
 import re
 from supabase import create_client, Client
 import os
 from dotenv import load_dotenv
+import database as db
+import sqlalchemy
 
 load_dotenv()
 
@@ -52,16 +55,13 @@ async def generate_fight_image(request: FightImageRequest):
         name1 = re.sub(r'[^a-zA-Z0-9]', '', request.entrant1.name)
         name2 = re.sub(r'[^a-zA-Z0-9]', '', request.entrant2.name)
         filename = f"fight_{name1}_vs_{name2}_{timestamp}.png"
-        
-        with open(filename, 'wb') as f:
-            f.write(image_data)
-        
-        with open(filename, 'rb') as f:
-            response = supabase.storage.from_('images').upload(
-                path=filename,
-                file=f,
-                file_options={"content-type": "image/png"}
-            )
+
+        image_file = BytesIO(image_data)
+        response = supabase.storage.from_('images').upload(
+            path=filename,
+            file=image_file.getvalue(),
+            file_options={"content-type": "image/png"}
+        )
             
         image_url = supabase.storage.from_('images').get_public_url(filename)
         
@@ -72,6 +72,46 @@ async def generate_fight_image(request: FightImageRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate fight image: {str(e)}"
+        )
+
+
+async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
+    print('Generating entrant image:', entrant)
+    try:
+        prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"
+
+        response = bedrock.invoke_model(
+            modelId='stability.stable-image-ultra-v1:0',
+            body=json.dumps({'prompt': prompt})
+        )
+
+        output_body = json.loads(response["body"].read().decode("utf-8"))
+        base64_output_image = output_body["images"][0]
+        image_data = base64.b64decode(base64_output_image)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        name = re.sub(r'[^a-zA-Z0-9]', '', entrant.name)
+        weapon = re.sub(r'[^a-zA-Z0-9]', '', entrant.weapon)
+        filename = f"fight_{name}_w_{weapon}_{timestamp}.png"
+
+        image_file = BytesIO(image_data)
+        response = supabase.storage.from_('images').upload(
+            path=filename,
+            file=image_file.getvalue(),
+            file_options={"content-type": "image/png"}
+        )
+
+        image_url = supabase.storage.from_('images').get_public_url(filename)
+
+        upload_entrant_image(image_url, entrant_id)
+
+        return {"image_url": image_url, "local_file": filename}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate entrant image: {str(e)}"
         )
 
 async def generate_fight_story(request: FightStoryRequest):
@@ -142,4 +182,23 @@ async def generate_fight_story(request: FightStoryRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate fight story: {str(e)}"
+        )
+
+
+def upload_entrant_image(img_url: str, entrant_id: int):
+    upload_query = sqlalchemy.text("""
+        UPDATE entrants
+        SET img_url = :img_url
+        WHERE id = :entrant_id
+    """)
+
+    try:
+        with db.engine.begin() as con:
+            con.execute(upload_query, {
+                'img_url': img_url, 'entrant_id': entrant_id
+            })
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create entrant in Supabase. Error: " + str(e)
         )

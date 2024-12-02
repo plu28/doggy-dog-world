@@ -4,7 +4,9 @@ import sqlalchemy
 from src import database as db
 from src.api import users
 import asyncio
+from anyio import from_thread
 from ..guardrails import validate_entrant
+from ..fight_content_generator import generate_entrant_image, EntrantInfo
 
 router = APIRouter(
     prefix="/entrants",
@@ -18,12 +20,13 @@ class Entrant(BaseModel):
 
 
 @router.post("/")
-def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
+async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
     """
     Given any name and weapon as strings, creates an entrant for the current game.
     Entrant also will have an owner_id set as the requesting user's id.
     """
-    validation_result = asyncio.run(validate_entrant(entrant))
+
+    validation_result = await validate_entrant(entrant)
     if not validation_result:
         raise HTTPException(
             status_code=400,
@@ -76,11 +79,20 @@ def create_entrant(entrant: Entrant, user = Depends(users.get_current_user)):
             detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
 
+    # Generate image for entrant
+    asyncio.create_task(
+        generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)
+    )
+
     return {
         "entrant_id": entrant_id,
         "entrant_name": entrant.name,
         "entrant_weapon": entrant.weapon
     }
+
+@router.get('/images/{entrant_id}')
+def get_entrant_image(entrant: Entrant):
+    pass
 
 
 @router.get('/{entrant_id}')
