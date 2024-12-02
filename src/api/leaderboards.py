@@ -93,12 +93,17 @@ def get_users_leaderboard(game_id):
     
     get_best_betters = """
                         SELECT
-                            game_id,
+                            rounds.game_id, 
                             username, 
-                            total_earnings,
-                            rank
-                        FROM users_leaderboard
-                        WHERE game_id = :game_id
+                            SUM(balance_change) AS total_earnings,
+                            DENSE_RANK() OVER (ORDER BY SUM(balance_change) DESC) AS rank
+                        FROM profiles
+                        JOIN user_balances ON user_balances.user_id = profiles.user_id
+                        JOIN matches ON matches.id = user_balances.match_id
+                        JOIN rounds ON rounds.id = matches.round_id
+                        WHERE rounds.game_id = :game_id
+                        GROUP BY rounds.game_id, username
+                        ORDER BY rank, total_earnings DESC
                         LIMIT 10
                         """
     try:
