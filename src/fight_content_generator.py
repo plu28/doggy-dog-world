@@ -118,7 +118,7 @@ async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
             detail=f"Failed to generate entrant image: {str(e)}"
         )
 
-async def generate_fight_story(request: FightStoryRequest):
+async def generate_fight_story(request: FightStoryRequest, match_id: int):
     try:
         if request.winner not in [request.entrant1.name, request.entrant2.name]:
             raise HTTPException(
@@ -168,6 +168,9 @@ async def generate_fight_story(request: FightStoryRequest):
             inferenceConfig=inference_config,
         )
         story = response['output']['message']['content'][0]['text']
+
+        upload_match_story(story, match_id)
+
         return story
     except HTTPException:
         raise
@@ -205,6 +208,25 @@ def upload_match_image(img_url: str, match_id: int):
         raise HTTPException(
             status_code=500,
             detail="Failed to update match img_url in Supabase. Error: " + str(e)
+        )
+
+
+def upload_match_story(story: str, match_id: int):
+    upload_query = sqlalchemy.text("""
+        UPDATE matches
+        SET story = :story
+        WHERE id = :match_id
+    """)
+
+    try:
+        with db.engine.begin() as con:
+            con.execute(upload_query, {
+                'story': story, 'match_id': match_id
+            })
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update match story in Supabase. Error: " + str(e)
         )
 
 
