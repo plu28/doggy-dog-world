@@ -186,6 +186,25 @@ async def generate_fight_story(request: FightStoryRequest):
         )
 
 
+def upload_match_image(img_url: str, match_id: int):
+    upload_query = sqlalchemy.text("""
+        UPDATE matches
+        SET img_url = :img_url
+        WHERE id = :match_id
+    """)
+
+    try:
+        with db.engine.begin() as con:
+            con.execute(upload_query, {
+                'img_url': img_url, 'match_id': match_id
+            })
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update match img_url in Supabase. Error: " + str(e)
+        )
+
+
 def upload_entrant_image(img_url: str, entrant_id: int):
     upload_query = sqlalchemy.text("""
         UPDATE entrants
@@ -201,5 +220,5 @@ def upload_entrant_image(img_url: str, entrant_id: int):
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create entrant in Supabase. Error: " + str(e)
+            detail="Failed to update entrant img_url in Supabase. Error: " + str(e)
         )
