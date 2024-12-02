@@ -231,34 +231,26 @@ def match_results(match_id: int):
         'loser': results.match_loser
     }
 
-@router.get("/entrants/{match_id}")
-def get_active_match_entrants(match_id: int):
+@router.get("/{match_id}")
+def get_match_data(match_id: int):
     """
-    Takes a match_id and returns the two entrants participating in that match
+    Takes a match_id and returns all of its data.
     """
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
-                SELECT entrant_one, entrant_two
+                SELECT *
                 FROM matches
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_matches
-                    WHERE completed_matches.id = matches.id
-                )
                 AND matches.id = :match_id
                 ''')
-            match_row = con.execute(select_query, {'match_id': match_id}).first()
-        if match_row == None:
+            match = con.execute(select_query, {'match_id': match_id}).mappings().fetchone()
+        if not match:
             raise Exception("Match does not exist or match is completed.")
     except Exception as e:
         print(e)
         return {'error': str(e)}
 
-    return {
-        'entrant1_id': match_row.entrant_one,
-        'entrant2_id': match_row.entrant_two
-    }
+    return match
 
 @router.get("/balance/{game_id}")
 def get_balance(game_id: int, user = Depends(get_current_user)):
