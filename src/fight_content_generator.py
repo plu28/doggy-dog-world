@@ -37,7 +37,7 @@ class FightStoryRequest(BaseModel):
     winner: str
 
 FIGHT_STORY_MODEL_ID = "meta.llama3-70b-instruct-v1:0"
-IMAGE_MODEL_ID = "'stability.stable-image-ultra-v1:0'"
+IMAGE_MODEL_ID = "stability.stable-image-ultra-v1:0"
 
 
 async def generate_fight_image(request: FightImageRequest, match_id: int):
