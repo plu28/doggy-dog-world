@@ -291,7 +291,7 @@ def continue_game(game_id: int):
             if step != "start_match()" and step != "end_match()" and step != "start_round()" and step != "start_redemption_match()" and step != "end_game()":
                 raise Exception("Unexpected step function detected")
 
-            status = eval(step)
+            info = eval(step)
 
             # increment index
             update_index = con.execute(update_index_query)
@@ -302,7 +302,7 @@ def continue_game(game_id: int):
         print(str(e))
         return ({'error': str(e)})
 
-    return ({'status': status})
+    return info
 
 # continue game helper functions
 def end_game():
@@ -325,7 +325,13 @@ def end_game():
         end_game = con.execute(end_game_query).fetchone()
         if end_game == None:
             raise Exception("Game not ended successfully")
-    return f"Ended game: {end_game.game_id}" 
+    return {
+        'status': 'end_game',
+        'details': {
+            'round_id': end_round.round_id,
+            'game_id': end_game.game_id 
+        }
+    }
     
 
 def end_match():
@@ -352,24 +358,28 @@ def end_match():
         SELECT
             (SELECT match FROM active_match) AS match_id,
             (SELECT entrant_one FROM active_match) AS entrant_id
+        RETURNING entrant_id
     ''')
     entrant_one_won_query = sqlalchemy.text('''
         INSERT INTO match_victors (match_id, entrant_id)
         SELECT
             (SELECT match FROM active_match) AS match_id,
             (SELECT entrant_one FROM active_match) AS entrant_id
+        RETURNING entrant_id
     ''')
     entrant_two_lost_query = sqlalchemy.text('''
         INSERT INTO match_losers (match_id, entrant_id)
         SELECT
             (SELECT match FROM active_match) AS match_id,
             (SELECT entrant_two FROM active_match) AS entrant_id
+        RETURNING entrant_id
     ''')
     entrant_two_won_query = sqlalchemy.text('''
         INSERT INTO match_victors (match_id, entrant_id)
         SELECT
             (SELECT match FROM active_match) AS match_id,
             (SELECT entrant_two FROM active_match) AS entrant_id
+        RETURNING entrant_id
     ''')
 
     # The following queries disburse winnings to user balances
@@ -441,13 +451,13 @@ def end_match():
             else:
                 payout_ratio = 1
 
-            entrant_one_won = con.execute(entrant_one_won_query)
-            entrant_two_lost = con.execute(entrant_two_lost_query)
+            victor = con.execute(entrant_one_won_query).fetchone()
+            loser = con.execute(entrant_two_lost_query).fetchone()
             disburse_entrant_one = con.execute(disburse_entrant_one_won_query, {'payout_ratio': payout_ratio})
 
             if disburse_entrant_one.rowcount == 0 and total_bet != 0:
                 raise Exception("Entrant one won disbursement failed")
-            if entrant_one_won.rowcount == 0 or entrant_two_lost.rowcount == 0:
+            if victor == None or loser == None:
                 raise Exception("Failed to execute winner/loser queries")
         else:
             print("Entrant 2 won")
@@ -458,13 +468,13 @@ def end_match():
             else:
                 payout_ratio = 1
 
-            entrant_two_won = con.execute(entrant_two_won_query)
-            entrant_one_lost = con.execute(entrant_one_lost_query)
+            victor = con.execute(entrant_two_won_query).fetchone()
+            loser = con.execute(entrant_one_lost_query).fetchone()
             disburse_entrant_two = con.execute(disburse_entrant_two_won_query, {'payout_ratio': payout_ratio})
 
             if disburse_entrant_two.rowcount == 0 and total_bet != 0:
                 raise Exception("Entrant one won disbursement failed")
-            if entrant_two_won.rowcount == 0 or entrant_one_lost.rowcount == 0:
+            if victor == None or loser == None:
                 raise Exception("Failed to execute winner/loser queries")
 
         # End the match
@@ -472,7 +482,17 @@ def end_match():
         if end_match == None:
             raise Exception("Failed to end match")
 
-    return f"Ended match: {end_match.id}. Entrant {winner} won. Payout ratio: {payout_ratio}"
+    return {
+        'status': 'end_match',
+        'details': {
+            'match_id': end_match.id,
+            'victor': victor.entrant_id,
+            'loser': loser.entrant_id,
+            'payout_multiplier': payout_ratio,
+            'entrant_one_bet_amount': entrant_one_bet_amount,
+            'entrant_two_bet_amount': entrant_two_bet_amount
+        }
+    }
 
 
 def start_match():
@@ -516,13 +536,21 @@ def start_match():
                 (SELECT round FROM active_round) AS round_id,
                 (SELECT entrant_id FROM entrant_selection WHERE row_num = 1) AS entrant_one,
                 (SELECT entrant_id FROM entrant_selection WHERE row_num = 2) AS entrant_two
-            RETURNING id
+            RETURNING id, round_id, entrant_one, entrant_two
     ''')
     with db.engine.begin() as con:
         start_match = con.execute(start_match_query).fetchone()
         if start_match == None:
             raise Exception("Match not started successfully")
-    return f"Started match: {start_match.id}" 
+    return {
+        'status': 'new_match',
+        'details': {
+            'round_id': start_match.round_id,
+            'match_id': start_match.id,
+            'entrant_one': start_match.entrant_one,
+            'entrant_two': start_match.entrant_two,
+        }
+    }
 
 def start_redemption_match():
     start_redemption_match_query = sqlalchemy.text('''
@@ -558,13 +586,21 @@ def start_redemption_match():
             (SELECT round FROM active_round) AS round_id,
             (SELECT entrant_id FROM unused_entrants) AS entrant_one,
             (SELECT losers_id FROM active_round_losers) AS entrant_two
-        RETURNING id
+        RETURNING id, round_id, entrant_one, entrant_two
     ''')
     with db.engine.begin() as con:
         start_redemption_match = con.execute(start_redemption_match_query).fetchone()
         if start_redemption_match == None:
             raise Exception("Redemption match not started successfully")
-    return f"Started redemption match: {start_redemption_match.id}"
+    return {
+        'status': 'new_redemption_match',
+        'details': {
+            'round_id': start_redemption_match.round_id,
+            'match_id': start_redemption_match.id,
+            'entrant_one': start_redemption_match.entrant_one,
+            'entrant_two': start_redemption_match.entrant_two,
+        }
+    }
 
 def start_round():
 
@@ -573,7 +609,7 @@ def start_round():
         SELECT
             (SELECT id FROM active_game),
             (SELECT round_id FROM completed_rounds ORDER BY completed_at DESC LIMIT 1)
-        RETURNING id
+        RETURNING id, game_id
     ''')
     end_round_query = sqlalchemy.text('''
         INSERT INTO completed_rounds (round_id)
@@ -587,5 +623,13 @@ def start_round():
         start_round = con.execute(start_round_query).fetchone()
         if start_round == None:
             raise Exception("Round not started successfully")
-    return f"Started round: {start_round.id}"
+    return {
+        'status': 'new_round',
+        'details': {
+            'game_id': start_round.game_id,
+            'ended_round': end_round.round_id,
+            'new_round': start_round.id
+        }
+    
+    }
 
