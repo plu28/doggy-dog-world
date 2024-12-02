@@ -171,7 +171,7 @@ CREATE VIEW users_leaderboard AS (
   ORDER BY rank, total_earnings DESC
 )
 
--- INDEXES FOR get_user_leaderboard endpoint
+-- INDEXES FOR get_users_leaderboard endpoint
 CREATE INDEX idx_rounds_game_id ON rounds(game_id);
 CREATE INDEX idx_user_balances_match_id ON user_balances(match_id);
 CREATE INDEX idx_matches_round_id ON matches(round_id);
