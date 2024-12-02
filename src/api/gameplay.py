@@ -636,8 +636,8 @@ async def end_match():
         WHERE id = :entrant_id
     """)
     with db.engine.begin() as con:
-        victor_data = con.execute(sqlalchemy.text(entrant_query), {"entrant_id":  victor.entrant_id}).fetchone()
-        loser_data = con.execute(sqlalchemy.text(entrant_query), {"entrant_id":  loser.entrant_id}).fetchone()
+        victor_data = con.execute(entrant_query, {"entrant_id":  victor.entrant_id}).fetchone()
+        loser_data = con.execute(entrant_query, {"entrant_id":  loser.entrant_id}).fetchone()
 
     # Generate match story for the entrants
     asyncio.create_task(
@@ -645,7 +645,7 @@ async def end_match():
             entrant1=fcg.EntrantInfo(name=victor_data.name, weapon=victor_data.weapon),
             entrant2=fcg.EntrantInfo(name=loser_data.name, weapon=loser_data.weapon),
             winner=victor_data.name
-        ), start_match.id)
+        ), end_match.id)
     )
 
     return {
