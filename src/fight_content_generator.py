@@ -93,7 +93,7 @@ async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         name = re.sub(r'[^a-zA-Z0-9]', '', entrant.name)
         weapon = re.sub(r'[^a-zA-Z0-9]', '', entrant.weapon)
-        filename = f"fight_{name}_w_{weapon}_{timestamp}.png"
+        filename = f"entrant_{name}_w_{weapon}_{timestamp}.png"
 
         image_file = BytesIO(image_data)
         response = supabase.storage.from_('images').upload(
