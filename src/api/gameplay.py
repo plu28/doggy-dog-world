@@ -156,14 +156,6 @@ def get_active_round(game_id: int):
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
                 SELECT round FROM active_round
-                SELECT rounds.id AS round, rounds.game_id AS game
-                FROM rounds
-                WHERE NOT EXISTS (
-                    SELECT 1
-                    FROM completed_rounds
-                    WHERE completed_rounds.round_id = rounds.id
-                )
-                AND rounds.game_id = :game_id
                 ''')
             round_id = con.execute(select_query, {'game_id': game_id}).scalar_one_or_none()
         if round_id == None:
@@ -182,16 +174,7 @@ def get_active_match(round_id: int):
 
     try:
         with db.engine.begin() as con:
-            select_query = sqlalchemy.text('''
-                SELECT matches.id AS match, matches.round_id AS game
-                FROM matches
-                WHERE NOT EXISTS (
-                  SELECT 1
-                  FROM completed_matches
-                  WHERE completed_matches.id = matches.id
-                )
-                AND matches.round_id = :round_id
-                ''')
+            select_query = sqlalchemy.text('SELECT match FROM active_match')
             match_id = con.execute(select_query, {'round_id': round_id}).scalar_one_or_none()
         if match_id == None:
             raise Exception("There are currently no active matches.")
@@ -200,6 +183,22 @@ def get_active_match(round_id: int):
         return {'error': str(e)}
 
     return {'match_id': match_id}
+
+
+@router.get("/previous_match")
+def get_last_match():
+    """
+    Gets the most recently completed match for the current game.
+    """
+    try:
+        with db.engine.begin() as con:
+            match_id = con.execute(sqlalchemy.text('SELECT id FROM last_match'),).scalar_one_or_none()
+    except Exception as e:
+        print(e)
+        return {'error': str(e)}
+
+    return {'match_id': match_id}
+
 
 @router.get("/{match_id}/results")
 def match_results(match_id: int):

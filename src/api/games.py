@@ -199,44 +199,14 @@ async def join_game(user = Depends(get_current_user)):
             detail=f"Failed to join game: {str(e)}"
         )
 
+
 # get the current game status if the user is in one
-@router.get("/current", response_model=Optional[GameStatus])
-async def get_current_game(user = Depends(get_current_user)):
+@router.get("/current")
+async def get_current_game():
     try:
-        user_id = user.user.id
-        
         with db.engine.begin() as conn:
             game = conn.execute(
-                sqlalchemy.text("""
-                    SELECT 
-                        g.id,
-                        (SELECT COUNT(*) FROM players WHERE game_id = g.id) as player_count,
-                        NOT EXISTS(
-                            SELECT 1 
-                            FROM completed_games 
-                            WHERE game_id = g.id
-                        ) as in_lobby
-                    FROM games g
-                    JOIN players p ON p.game_id = g.id
-                    WHERE p.id = :user_id
-                    AND NOT EXISTS(
-                        SELECT 1 
-                        FROM completed_games cg 
-                        WHERE cg.game_id = g.id
-                    )
-                    LIMIT 1
-                """),
-                {"user_id": user_id}
-            ).fetchone()
-            
-            if not game:
-                return None
-                
-            return GameStatus(
-                id=game.id,
-                player_count=game.player_count,
-                in_lobby=game.in_lobby
-            )
+                sqlalchemy.text('SELECT * FROM game_state')).mappings().fetchone()
             
     except Exception as e:
         print(f"Get current game error: {str(e)}")
@@ -244,6 +214,9 @@ async def get_current_game(user = Depends(get_current_user)):
             status_code=400,
             detail=f"Failed to get current game: {str(e)}"
         )
+
+    return game
+
 
 # get all players in the game lobby
 @router.get("/{game_id}/lobby", response_model=List[LobbyPlayer])
