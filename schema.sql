@@ -169,3 +169,30 @@ CREATE VIEW users_leaderboard AS (
   GROUP BY rounds.game_id, username
   ORDER BY rank, total_earnings DESC
 )
+
+-- last_match
+CREATE VIEW last_match AS (
+                          select cm.id
+                          from completed_matches AS cm
+                                   join matches AS m ON cm.id = m.id
+                                   join rounds AS r ON r.id = m.round_id
+                                   join active_game AS ag ON ag.id = r.game_id
+                          order by cm.id desc
+                              limit 1
+)
+
+-- game_state
+CREATE VIEW game_state AS (
+                          SELECT
+                              ag.id as game_id,
+                              (SELECT id FROM active_round) as active_round,
+                              (SELECT id FROM active_match) as active_match,
+                              (SELECT id FROM last_match) as last_match,
+                              (SELECT entrant_id FROM match_victors as mv JOIN last_match as lm ON lm.id = mv.match_id) as last_victor,
+                              (SELECT entrant_id FROM match_losers as ml JOIN last_match as lm ON lm.id = ml.match_id) as last_loser,
+                              (SELECT entrant_one FROM active_match) as active_entrant_one,
+                              (SELECT entrant_two FROM active_match) as active_entrant_two,
+                              (SELECT COUNT(*) FROM players as p WHERE p.game_id = ag.id) as player_count,
+                              (SELECT COUNT(*) FROM entrants as e WHERE e.game_id = ag.id) as entrant_count
+                          FROM active_game as ag
+)
