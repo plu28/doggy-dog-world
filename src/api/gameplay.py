@@ -7,11 +7,17 @@ import random
 from src.api.users import get_current_user # middleware for auth
 import asyncio
 import src.fight_content_generator as fcg
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+gen_ai = os.getenv("GEN_AI")
 
 router = APIRouter(
     prefix="/gameplay",
     tags=["gameplay"],
 )
+
 
 # remove async in gameplay.py ~~
 # fix endpoint names ~~
@@ -639,14 +645,15 @@ async def end_match():
         victor_data = con.execute(entrant_query, {"entrant_id":  victor.entrant_id}).fetchone()
         loser_data = con.execute(entrant_query, {"entrant_id":  loser.entrant_id}).fetchone()
 
-    # Generate match story for the entrants
-    asyncio.create_task(
-        fcg.generate_fight_story(fcg.FightStoryRequest(
-            entrant1=fcg.EntrantInfo(name=victor_data.name, weapon=victor_data.weapon),
-            entrant2=fcg.EntrantInfo(name=loser_data.name, weapon=loser_data.weapon),
-            winner=victor_data.name
-        ), end_match.id)
-    )
+    if (gen_ai == "true"):
+        # Generate match story for the entrants
+        asyncio.create_task(
+            fcg.generate_fight_story(fcg.FightStoryRequest(
+                entrant1=fcg.EntrantInfo(name=victor_data.name, weapon=victor_data.weapon),
+                entrant2=fcg.EntrantInfo(name=loser_data.name, weapon=loser_data.weapon),
+                winner=victor_data.name
+            ), end_match.id)
+        )
 
     return {
         'status': 'end_match',
@@ -717,15 +724,16 @@ async def start_match():
             WHERE id IN (:entrant_one_id, :entrant_two_id)
         """), {"entrant_one_id":  start_match.entrant_one, "entrant_two_id": start_match.entrant_two}).fetchall()
 
-    # Generate match image for the entrants
-    entrant_one = entrant_data[0]
-    entrant_two = entrant_data[1]
-    asyncio.create_task(
-        fcg.generate_fight_image(fcg.FightImageRequest(
-            entrant1=fcg.EntrantInfo(name=entrant_one.name, weapon=entrant_one.weapon),
-            entrant2=fcg.EntrantInfo(name=entrant_two.name, weapon=entrant_two.weapon)
-        ), start_match.id)
-    )
+    if (gen_ai == "true"):
+        # Generate match image for the entrants
+        entrant_one = entrant_data[0]
+        entrant_two = entrant_data[1]
+        asyncio.create_task(
+            fcg.generate_fight_image(fcg.FightImageRequest(
+                entrant1=fcg.EntrantInfo(name=entrant_one.name, weapon=entrant_one.weapon),
+                entrant2=fcg.EntrantInfo(name=entrant_two.name, weapon=entrant_two.weapon)
+            ), start_match.id)
+        )
 
     return {
         'status': 'new_match',
@@ -786,15 +794,16 @@ async def start_redemption_match():
             WHERE id IN (:entrant_one_id, :entrant_two_id)
         """), {"entrant_one_id":  start_redemption_match.entrant_one, "entrant_two_id": start_redemption_match.entrant_two}).fetchall()
 
-    # Generate match image for the entrants
-    entrant_one = entrant_data[0]
-    entrant_two = entrant_data[1]
-    asyncio.create_task(
-        fcg.generate_fight_image(fcg.FightImageRequest(
-            entrant1=fcg.EntrantInfo(name=entrant_one.name, weapon=entrant_one.weapon),
-            entrant2=fcg.EntrantInfo(name=entrant_two.name, weapon=entrant_two.weapon)
-        ), start_match.id)
-    )
+    if (gen_ai == "true"):
+        # Generate match image for the entrants
+        entrant_one = entrant_data[0]
+        entrant_two = entrant_data[1]
+        asyncio.create_task(
+            fcg.generate_fight_image(fcg.FightImageRequest(
+                entrant1=fcg.EntrantInfo(name=entrant_one.name, weapon=entrant_one.weapon),
+                entrant2=fcg.EntrantInfo(name=entrant_two.name, weapon=entrant_two.weapon)
+            ), start_redemption_match.id)
+        )
 
     return {
         'status': 'new_redemption_match',
