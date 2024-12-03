@@ -1,10 +1,11 @@
-from fastapi import FastAPI, exceptions
+from fastapi import FastAPI, exceptions, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 import json
 import logging
 from starlette.middleware.cors import CORSMiddleware
 from src.api import users, entrants, games, gameplay, leaderboards 
+import time
 
 description = """
 Doggy Dog World is where we watch the fights of your dreams.
@@ -48,6 +49,18 @@ async def validation_exception_handler(request, exc):
         response['message'].append(f"{error['loc']}: {error['msg']}")
 
     return JSONResponse(response, status_code=422)
+
+# Middleware to get round trip time for every endpoint call
+@app.middleware("http")
+async def log_requests_and_responses(request: Request, call_next):
+
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+
+    print(f"Process time: {process_time:.4f} seconds")
+
+    return response
 
 @app.get("/")
 async def root():

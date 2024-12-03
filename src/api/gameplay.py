@@ -18,19 +18,6 @@ router = APIRouter(
     tags=["gameplay"],
 )
 
-
-# remove async in gameplay.py ~~
-# fix endpoint names ~~
-# raise specific status codes instead of printing error ~~ not important do it later 
-# refactor bet and continue endpoints ~~ 
-# make continue_game only accessible to admins 
-# make idempotent calls return the same value (without db changes) instead of returning errors ~~
-# add docstrings to your methods ~~
-# dont map to a dictionary ~~
-# get rid of commented out code in gameplay.py ~~
-# add limit to bets endpoint so a user cant spam rows ~~ frontend does this
-# add views where possible ~~
-
 @router.get("/{match_id}/bet_info")
 def bet_info(match_id: int):
     """
@@ -383,7 +370,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
     return "OK"
 
 @router.post("/{game_id}/continue")
-async def continue_game(game_id: int):
+async def continue_game(game_id: int, user = Depends(get_current_user)):
     """
     Continues a game into its next step.
     Possible steps:
@@ -395,6 +382,7 @@ async def continue_game(game_id: int):
         - End round (all entrants have played)
         - End game (only one winner in the previous round)
     """
+
     game_activity_check_query = sqlalchemy.text('''
         SELECT 1
         FROM games
@@ -422,8 +410,26 @@ async def continue_game(game_id: int):
         SET index = index + 1;
     ''')
 
+    check_admin_query = sqlalchemy.text('''
+        SELECT 1
+        WHERE :uuid = (
+            SELECT
+                players.id
+            FROM
+                players
+            WHERE players.game_id = (SELECT id FROM active_game)
+            ORDER BY players.player_id
+            LIMIT 1
+        )
+    ''')
+
     try:
+        user_id = user.user.id
+
         with db.engine.begin() as con:
+            if con.execute(check_admin_query, {'uuid': user_id}).scalar_one_or_none() == None:
+                raise Exception("Only the admin can continue the game.")
+
             # Ensure that this game_id is active
             if con.execute(game_activity_check_query, {'game_id': game_id}).scalar_one_or_none() == None:
                 raise Exception("This game is not active.")
