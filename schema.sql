@@ -141,58 +141,37 @@ create table
   ) tablespace pg_default;
 
 -- Views
+-- DECIDED NOT TO USE VIEWS BECAUSE IT WAS SLOWER & ALSO NOT UTILIZING OUR INDEXES
 -- entrants_leaderboards
-CREATE VIEW entrants_leaderboard AS (
-  SELECT
-    entrants.game_id,
-    entrants.name AS entrant_name, 
-    entrants.weapon AS entrant_weapon, 
-    COUNT(match_victors.entrant_id) AS total_wins,
-    DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
-  FROM entrants
-  JOIN match_victors ON match_victors.entrant_id = entrants.id
-  GROUP BY entrants.game_id, entrants.name, entrants.weapon
-  ORDER BY rank, total_wins DESC
-)
+-- CREATE VIEW entrants_leaderboard AS (
+--   SELECT
+--     entrants.game_id,
+--     entrants.name AS entrant_name, 
+--     entrants.weapon AS entrant_weapon, 
+--     COUNT(match_victors.entrant_id) AS total_wins,
+--     DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
+--   FROM entrants
+--   JOIN match_victors ON match_victors.entrant_id = entrants.id
+--   GROUP BY entrants.game_id, entrants.name, entrants.weapon
+--   ORDER BY rank, total_wins DESC
+-- )
 
--- users_leaderboards
-CREATE VIEW users_leaderboard AS (
-  SELECT
-    rounds.game_id, 
-    username, 
-    SUM(balance_change) AS total_earnings,
-    DENSE_RANK() OVER (ORDER BY SUM(balance_change) DESC) AS rank
-  FROM profiles
-  JOIN user_balances ON user_balances.user_id = profiles.user_id
-  JOIN matches ON matches.id = user_balances.match_id
-  JOIN rounds ON rounds.id = matches.round_id
-  GROUP BY rounds.game_id, username
-  ORDER BY rank, total_earnings DESC
-)
+-- -- users_leaderboards
+-- CREATE VIEW users_leaderboard AS (
+--   SELECT
+--     rounds.game_id, 
+--     username, 
+--     SUM(balance_change) AS total_earnings,
+--     DENSE_RANK() OVER (ORDER BY SUM(balance_change) DESC) AS rank
+--   FROM profiles
+--   JOIN user_balances ON user_balances.user_id = profiles.user_id
+--   JOIN matches ON matches.id = user_balances.match_id
+--   JOIN rounds ON rounds.id = matches.round_id
+--   GROUP BY rounds.game_id, username
+--   ORDER BY rank, total_earnings DESC
+-- )
 
--- last_match
-CREATE VIEW last_match AS (
-                          select cm.id
-                          from completed_matches AS cm
-                                   join matches AS m ON cm.id = m.id
-                                   join rounds AS r ON r.id = m.round_id
-                                   join active_game AS ag ON ag.id = r.game_id
-                          order by cm.id desc
-                              limit 1
-)
-
--- game_state
-CREATE VIEW game_state AS (
-                          SELECT
-                              ag.id as game_id,
-                              (SELECT id FROM active_round) as active_round,
-                              (SELECT id FROM active_match) as active_match,
-                              (SELECT id FROM last_match) as last_match,
-                              (SELECT entrant_id FROM match_victors as mv JOIN last_match as lm ON lm.id = mv.match_id) as last_victor,
-                              (SELECT entrant_id FROM match_losers as ml JOIN last_match as lm ON lm.id = ml.match_id) as last_loser,
-                              (SELECT entrant_one FROM active_match) as active_entrant_one,
-                              (SELECT entrant_two FROM active_match) as active_entrant_two,
-                              (SELECT COUNT(*) FROM players as p WHERE p.game_id = ag.id) as player_count,
-                              (SELECT COUNT(*) FROM entrants as e WHERE e.game_id = ag.id) as entrant_count
-                          FROM active_game as ag
-)
+-- INDEXES FOR get_users_leaderboard endpoint
+CREATE INDEX idx_rounds_game_id ON rounds(game_id);
+CREATE INDEX idx_user_balances_match_id ON user_balances(match_id);
+CREATE INDEX idx_matches_round_id ON matches(round_id);

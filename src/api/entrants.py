@@ -7,12 +7,16 @@ import asyncio
 from anyio import from_thread
 from ..guardrails import validate_entrant
 from ..fight_content_generator import generate_entrant_image, EntrantInfo
+import os
+from dotenv import load_dotenv
 
 router = APIRouter(
     prefix="/entrants",
     tags=["entrants"],
 )
 
+load_dotenv()
+gen_ai = os.getenv("GEN_AI")
 
 class Entrant(BaseModel):
     name: str
@@ -79,10 +83,11 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
             detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
 
-    # Generate image for entrant
-    asyncio.create_task(
-        generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)
-    )
+    if (gen_ai == "true"):
+        # Generate image for entrant
+        asyncio.create_task(
+            generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)
+        )
 
     return {
         "entrant_id": entrant_id,
