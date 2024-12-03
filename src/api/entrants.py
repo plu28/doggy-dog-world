@@ -17,10 +17,6 @@ router = APIRouter(
 
 load_dotenv()
 gen_ai = os.getenv("GEN_AI")
-if (gen_ai == "true"):
-    gen_ai = True
-else:
-    gen_ai = False
 
 class Entrant(BaseModel):
     name: str
@@ -87,7 +83,7 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
             detail="Failed to create entrant in Supabase. Error: " + str(e)
         )
 
-    if (gen_ai):
+    if (gen_ai == "true"):
         # Generate image for entrant
         asyncio.create_task(
             generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)

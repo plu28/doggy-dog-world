@@ -12,10 +12,6 @@ import os
 
 load_dotenv()
 gen_ai = os.getenv("GEN_AI")
-if (gen_ai == "true"):
-    gen_ai = True
-else:
-    gen_ai = False
 
 router = APIRouter(
     prefix="/gameplay",
@@ -649,7 +645,7 @@ async def end_match():
         victor_data = con.execute(entrant_query, {"entrant_id":  victor.entrant_id}).fetchone()
         loser_data = con.execute(entrant_query, {"entrant_id":  loser.entrant_id}).fetchone()
 
-    if (gen_ai):
+    if (gen_ai == "true"):
         # Generate match story for the entrants
         asyncio.create_task(
             fcg.generate_fight_story(fcg.FightStoryRequest(
@@ -728,7 +724,7 @@ async def start_match():
             WHERE id IN (:entrant_one_id, :entrant_two_id)
         """), {"entrant_one_id":  start_match.entrant_one, "entrant_two_id": start_match.entrant_two}).fetchall()
 
-    if (gen_ai):
+    if (gen_ai == "true"):
         # Generate match image for the entrants
         entrant_one = entrant_data[0]
         entrant_two = entrant_data[1]
@@ -798,7 +794,7 @@ async def start_redemption_match():
             WHERE id IN (:entrant_one_id, :entrant_two_id)
         """), {"entrant_one_id":  start_redemption_match.entrant_one, "entrant_two_id": start_redemption_match.entrant_two}).fetchall()
 
-    if (gen_ai):
+    if (gen_ai == "true"):
         # Generate match image for the entrants
         entrant_one = entrant_data[0]
         entrant_two = entrant_data[1]
