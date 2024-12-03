@@ -30,12 +30,13 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
     Entrant also will have an owner_id set as the requesting user's id.
     """
 
-    validation_result = await validate_entrant(entrant)
-    if not validation_result:
-        raise HTTPException(
-            status_code=400,
-            detail="Entrant name or weapon failed contains inappropriate content."
-        )
+    if (gen_ai == "true"):
+        validation_result = await validate_entrant(entrant)
+        if not validation_result:
+            raise HTTPException(
+                status_code=400,
+                detail="Entrant name or weapon failed contains inappropriate content."
+            )
     
     create_entrant_query = sqlalchemy.text("""
         WITH active_game AS (
