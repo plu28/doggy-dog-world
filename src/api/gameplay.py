@@ -12,10 +12,10 @@ import os
 
 load_dotenv()
 gen_ai = os.getenv("GEN_AI")
-if (gen_ai == "false"):
-    gen_ai = False
 if (gen_ai == "true"):
     gen_ai = True
+else:
+    gen_ai = False
 
 router = APIRouter(
     prefix="/gameplay",
