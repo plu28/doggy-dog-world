@@ -201,7 +201,7 @@ async def join_game(user = Depends(get_current_user)):
 
 
 # get the current game status if the user is in one
-@router.get("/current")
+@router.get("/current/")
 async def get_current_game():
     try:
         with db.engine.begin() as conn:
