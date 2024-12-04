@@ -235,7 +235,7 @@ def get_match_data(match_id: int):
             select_query = sqlalchemy.text('''
                 SELECT *
                 FROM matches
-                AND matches.id = :match_id
+                WHERE matches.id = :match_id
                 ''')
             match = con.execute(select_query, {'match_id': match_id}).mappings().fetchone()
         if not match:
