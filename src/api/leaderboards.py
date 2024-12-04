@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 import sqlalchemy
 from src import database as db
+from colorama import Fore, Style
 
 router = APIRouter(
     prefix="/leaderboards",
@@ -14,8 +15,7 @@ def get_entrants_leaderboard(game_id):
     Returns the entrants name, weapon and their total wins in descending order
 
     """
-
-    print("game_id = ", game_id)
+    print(f"{Fore.CYAN}game_id = {game_id}{Style.RESET_ALL}")
 
     validate_game_id = """
                         SELECT 1
@@ -74,6 +74,8 @@ def get_entrants_leaderboard(game_id):
             detail=f"Failed to get entrant leaderboard: {str(e)}"
         )
 
+    print(f"{Fore.GREEN}Successfully found entrants leaderboard for game: {game_id}{Style.RESET_ALL}")
+    print(result)
     return {
         "game_id" : game_id,
         "result" : result
@@ -85,8 +87,7 @@ def get_users_leaderboard(game_id):
     Return the users' username and their total earnings in descending order
 
     """
-
-    print("game_id = ", game_id)
+    print(f"{Fore.CYAN}game_id = {game_id}{Style.RESET_ALL}")
 
     validate_game_id = """
                         SELECT 1
@@ -144,6 +145,7 @@ def get_users_leaderboard(game_id):
             detail=f"Failed to get user leaderboard: {str(e)}"
         )
 
+    print(f"{Fore.GREEN}Successfully found users leaderboard for game: {game_id}{Style.RESET_ALL}")
     return {
         "game_id" : game_id,
         "result" : result

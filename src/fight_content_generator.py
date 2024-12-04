@@ -12,6 +12,7 @@ import os
 from dotenv import load_dotenv
 import src.database as db
 import sqlalchemy
+from colorama import Fore, Style
 
 load_dotenv()
 
@@ -41,6 +42,8 @@ IMAGE_MODEL_ID = "stability.stable-image-ultra-v1:0"
 
 
 async def generate_fight_image(request: FightImageRequest, match_id: int):
+    print(f"{Fore.GREEN}Generating fight image: {request}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Match ID: {match_id}{Style.RESET_ALL}")
     try: 
         prompt = f"An epic battle scene between {request.entrant1.name} wielding a {request.entrant1.weapon} and {request.entrant2.name} wielding a {request.entrant2.weapon}, digital art style"[:70]
         
@@ -69,6 +72,8 @@ async def generate_fight_image(request: FightImageRequest, match_id: int):
 
         upload_match_image(image_url, match_id)
         
+        print(f"{Fore.GREEN}Fight image generated successfully!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Image URL: {image_url}{Style.RESET_ALL}")
         return {"image_url": image_url, "local_file": filename}
     except HTTPException:
         raise
@@ -80,7 +85,8 @@ async def generate_fight_image(request: FightImageRequest, match_id: int):
 
 
 async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
-    print('Generating entrant image:', entrant)
+    print(f"{Fore.GREEN}Generating entrant image: {entrant}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Entrant ID: {entrant_id}{Style.RESET_ALL}")
     try:
         prompt = f"An epic character portrait of {entrant.name} wielding a {entrant.weapon}, digital art style"[:70]
 
@@ -108,7 +114,9 @@ async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
         image_url = supabase.storage.from_('images').get_public_url(filename)
 
         upload_entrant_image(image_url, entrant_id)
-
+        
+        print(f"{Fore.GREEN}Entrant image generated successfully!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Image URL: {image_url}{Style.RESET_ALL}")
         return {"image_url": image_url, "local_file": filename}
     except HTTPException:
         raise
@@ -119,6 +127,8 @@ async def generate_entrant_image(entrant: EntrantInfo, entrant_id: int):
         )
 
 async def generate_fight_story(request: FightStoryRequest, match_id: int):
+    print(f"{Fore.GREEN}Generating fight story: {request}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Match ID: {match_id}{Style.RESET_ALL}")
     try:
         if request.winner not in [request.entrant1.name, request.entrant2.name]:
             raise HTTPException(
@@ -170,7 +180,9 @@ async def generate_fight_story(request: FightStoryRequest, match_id: int):
         story = response['output']['message']['content'][0]['text']
 
         upload_match_story(story, match_id)
-
+        
+        print(f"{Fore.GREEN}Fight story generated successfully!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Story: {story[:100]}...{Style.RESET_ALL}")
         return story
     except HTTPException:
         raise
@@ -193,6 +205,7 @@ async def generate_fight_story(request: FightStoryRequest, match_id: int):
 
 
 def upload_match_image(img_url: str, match_id: int):
+    print(f"{Fore.GREEN}Uploading match image to Supabase...{Style.RESET_ALL}")
     upload_query = sqlalchemy.text("""
         UPDATE matches
         SET img_url = :img_url
@@ -204,6 +217,7 @@ def upload_match_image(img_url: str, match_id: int):
             con.execute(upload_query, {
                 'img_url': img_url, 'match_id': match_id
             })
+        print(f"{Fore.GREEN}Match image uploaded successfully!{Style.RESET_ALL}")
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -212,6 +226,7 @@ def upload_match_image(img_url: str, match_id: int):
 
 
 def upload_match_story(story: str, match_id: int):
+    print(f"{Fore.GREEN}Uploading match story to Supabase...{Style.RESET_ALL}")
     upload_query = sqlalchemy.text("""
         UPDATE matches
         SET story = :story
@@ -223,6 +238,7 @@ def upload_match_story(story: str, match_id: int):
             con.execute(upload_query, {
                 'story': story, 'match_id': match_id
             })
+        print(f"{Fore.GREEN}Match story uploaded successfully!{Style.RESET_ALL}")
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -231,6 +247,7 @@ def upload_match_story(story: str, match_id: int):
 
 
 def upload_entrant_image(img_url: str, entrant_id: int):
+    print(f"{Fore.GREEN}Uploading entrant image to Supabase...{Style.RESET_ALL}")
     upload_query = sqlalchemy.text("""
         UPDATE entrants
         SET img_url = :img_url
@@ -242,6 +259,7 @@ def upload_entrant_image(img_url: str, entrant_id: int):
             con.execute(upload_query, {
                 'img_url': img_url, 'entrant_id': entrant_id
             })
+        print(f"{Fore.GREEN}Entrant image uploaded successfully!{Style.RESET_ALL}")
     except Exception as e:
         raise HTTPException(
             status_code=500,

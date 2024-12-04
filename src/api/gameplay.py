@@ -8,6 +8,7 @@ from src.api.users import get_current_user # middleware for auth
 import asyncio
 import src.fight_content_generator as fcg
 from dotenv import load_dotenv
+from colorama import Fore, Style
 import os
 
 load_dotenv()
@@ -26,6 +27,7 @@ def bet_info(match_id: int):
 
     Note that if a user places multiple bets in one match, bet_count will only count one bet for that user
     """
+    print(Fore.CYAN + f"Getting bet info for match: {match_id}" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -60,7 +62,8 @@ def bet_info(match_id: int):
     except Exception as e:
         print(e)
         return {'error': str(e)}
-
+    
+    print(f"Player count: {result.player_count}, Bet count: {result.better_count}")
     return {
         'player_count': result.player_count, 
         'bet_count': result.better_count
@@ -71,6 +74,7 @@ def kill_game(game_id: int):
     """
     Kills game and all active matches and rounds for given game_id 
     """
+    print(Fore.CYAN + f"Killing game: {game_id}" + Style.RESET_ALL)
     cte = sqlalchemy.text('''
         WITH kill_rounds AS (
             SELECT
@@ -124,6 +128,7 @@ def kill_game(game_id: int):
             game_killed = con.execute(kill_game_query, {'game_id': game_id}).fetchone()
             if game_killed != None:
                 status = status + f"\nGame Killed: {game_killed.game_id}"
+        print(status)
     except IntegrityError as e:
         print(e)
         return {'error': "attempting to kill a game that does not exist"}
@@ -139,6 +144,7 @@ def get_active_round(game_id: int):
     """
     Takes a game_id and returns the current active round for that game
     """
+    print(Fore.CYAN + f"Getting active round for game: {game_id}" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -150,7 +156,8 @@ def get_active_round(game_id: int):
     except Exception as e:
         print(e)
         return {'error': str(e)}
-
+    
+    print(f"Active round: {round_id}")
     return {'round_id': round_id}
 
 @router.get("/match/{round_id}")
@@ -158,7 +165,7 @@ def get_active_match(round_id: int):
     """
     Takes a round_id and returns the current active match for that round
     """
-
+    print(Fore.CYAN + f"Getting active match for round: {round_id}" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('SELECT match FROM active_match')
@@ -168,7 +175,8 @@ def get_active_match(round_id: int):
     except Exception as e:
         print(e)
         return {'error': str(e)}
-
+    
+    print(f"Active match: {match_id}")
     return {'match_id': match_id}
 
 
@@ -177,13 +185,15 @@ def get_last_match():
     """
     Gets the most recently completed match for the current game.
     """
+    print(Fore.CYAN + "Getting last match" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             match_id = con.execute(sqlalchemy.text('SELECT id FROM last_match'),).scalar_one_or_none()
     except Exception as e:
         print(e)
         return {'error': str(e)}
-
+    
+    print(f"Last match: {match_id}")
     return {'match_id': match_id}
 
 
@@ -192,6 +202,7 @@ def match_results(match_id: int):
     """
     Returns the id's of the victor and loser entrants for a given match_id
     """
+    print(Fore.CYAN + f"Getting results for match: {match_id}" + Style.RESET_ALL)
     match_results_query = sqlalchemy.text('''
         WITH match_victor AS (
             SELECT
@@ -220,6 +231,7 @@ def match_results(match_id: int):
         print(e)
         return {'error': str(e)}
     
+    print(f"Match victor: {results.match_victor}, Match loser: {results.match_loser}")
     return {
         'victor': results.match_victor,
         'loser': results.match_loser
@@ -230,6 +242,7 @@ def get_match_data(match_id: int):
     """
     Takes a match_id and returns all of its data.
     """
+    print(Fore.CYAN + f"Getting match data for match: {match_id}" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''
@@ -244,6 +257,7 @@ def get_match_data(match_id: int):
         print(e)
         return {'error': str(e)}
 
+    print(match)
     return match
 
 @router.get("/balance/{game_id}")
@@ -251,6 +265,7 @@ def get_balance(game_id: int, user = Depends(get_current_user)):
     """
     Returns the balance of a user in a game
     """
+    print(Fore.CYAN + f"Getting balance for game: {game_id}" + Style.RESET_ALL)
     uuid = user.user.id
 
     try:
@@ -272,6 +287,7 @@ def get_balance(game_id: int, user = Depends(get_current_user)):
         print(e)
         return {'error': str(e)}
 
+    print(f"Balance: {user_balance}")
     return {'balance': user_balance}
 
 class Bet(BaseModel):
@@ -289,6 +305,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
         - entrant_id is in the match
         - bet_amount does not exceed the users balance for that game
     """
+    print(Fore.CYAN + f"Placing bet for match: {bet.match_id}, entrant: {bet.entrant_id}, amount: {bet.bet_amount}" + Style.RESET_ALL)
     uuid = user.user.id
 
     if bet.bet_amount == 0:
@@ -367,6 +384,7 @@ def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user))
         print(e)
         return {'error': str(e)}
 
+    print("Bet placed successfully")
     return "OK"
 
 @router.post("/{game_id}/continue")
@@ -382,7 +400,7 @@ async def continue_game(game_id: int, user = Depends(get_current_user)):
         - End round (all entrants have played)
         - End game (only one winner in the previous round)
     """
-
+    print(Fore.CYAN + f"Continuing game: {game_id}" + Style.RESET_ALL)
     game_activity_check_query = sqlalchemy.text('''
         SELECT 1
         FROM games
@@ -460,11 +478,12 @@ async def continue_game(game_id: int, user = Depends(get_current_user)):
         print(str(e))
         return ({'error': str(e)})
 
+    print(f"Step: {step} executed successfully")
     return info
 
 # continue game helper functions
 async def end_game():
-
+    print(f"{Fore.CYAN}Ending game{Style.RESET_ALL}")
     end_game_query = sqlalchemy.text('''
         INSERT INTO completed_games (game_id)
         SELECT id FROM active_game
@@ -483,6 +502,8 @@ async def end_game():
         end_game = con.execute(end_game_query).fetchone()
         if end_game == None:
             raise Exception("Game not ended successfully")
+    
+    print(f"Game ended: {end_game.game_id}, Round ended: {end_round.round_id}")
     return {
         'status': 'end_game',
         'details': {
@@ -493,6 +514,7 @@ async def end_game():
     
 
 async def end_match():
+    print(f"{Fore.CYAN}Ending match{Style.RESET_ALL}")
     entrant_one_bet_amount_query = sqlalchemy.text('''
         SELECT
             COALESCE(SUM(bets.amount), 0) AS entrant_one_bets
@@ -660,6 +682,8 @@ async def end_match():
             ), end_match.id)
         )
 
+    
+    print(f"Match ended: {end_match.id}, Victor: {victor.entrant_id}, Loser: {loser.entrant_id}")
     return {
         'status': 'end_match',
         'details': {
@@ -674,6 +698,7 @@ async def end_match():
 
 
 async def start_match():
+    print(f"{Fore.CYAN}Starting match{Style.RESET_ALL}")
     start_match_query = sqlalchemy.text('''
         -- Gets all matches that are apart of a round
         WITH active_round_matches AS (
@@ -740,6 +765,7 @@ async def start_match():
             ), start_match.id)
         )
 
+    print(f"Match started: {start_match.id}, Entrant 1: {start_match.entrant_one}, Entrant 2: {start_match.entrant_two}")
     return {
         'status': 'new_match',
         'details': {
@@ -751,6 +777,7 @@ async def start_match():
     }
 
 async def start_redemption_match():
+    print(f"{Fore.CYAN}Starting redemption match{Style.RESET_ALL}")
     start_redemption_match_query = sqlalchemy.text('''
         -- Gets all matches that are apart of a round
         WITH active_round_matches AS (
@@ -810,6 +837,7 @@ async def start_redemption_match():
             ), start_redemption_match.id)
         )
 
+    print(f"Redemption match started: {start_redemption_match.id}, Entrant 1: {start_redemption_match.entrant_one}, Entrant 2: {start_redemption_match.entrant_two}")
     return {
         'status': 'new_redemption_match',
         'details': {
@@ -821,7 +849,7 @@ async def start_redemption_match():
     }
  
 async def start_round():
-
+    print(f"{Fore.CYAN}Starting round{Style.RESET_ALL}")
     start_round_query = sqlalchemy.text('''
         INSERT INTO rounds (game_id, prev_round_id)
         SELECT
@@ -841,6 +869,8 @@ async def start_round():
         start_round = con.execute(start_round_query).fetchone()
         if start_round == None:
             raise Exception("Round not started successfully")
+    
+    print(f"Round started: {start_round.id}, Game: {start_round.game_id}, Ended round: {end_round.round_id}")
     return {
         'status': 'new_round',
         'details': {

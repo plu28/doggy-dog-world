@@ -8,6 +8,7 @@ from anyio import from_thread
 from ..guardrails import validate_entrant
 from ..fight_content_generator import generate_entrant_image, EntrantInfo
 import os
+from colorama import Fore, Style
 from dotenv import load_dotenv
 
 router = APIRouter(
@@ -29,7 +30,7 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
     Given any name and weapon as strings, creates an entrant for the current game.
     Entrant also will have an owner_id set as the requesting user's id.
     """
-
+    print(Fore.CYAN + "Creating entrant: " + entrant.name + " with weapon: " + entrant.weapon + Style.RESET_ALL)
     if (gen_ai == "true"):
         validation_result = await validate_entrant(entrant)
         if not validation_result:
@@ -89,7 +90,8 @@ async def create_entrant(entrant: Entrant, user = Depends(users.get_current_user
         asyncio.create_task(
             generate_entrant_image(EntrantInfo(name=entrant.name, weapon=entrant.weapon), entrant_id)
         )
-
+        
+    print(Fore.GREEN + "Successfully created entrant: " + entrant.name + " with weapon: " + entrant.weapon + Style.RESET_ALL)
     return {
         "entrant_id": entrant_id,
         "entrant_name": entrant.name,
@@ -102,7 +104,7 @@ def get_user_entrant(game_id: int, user = Depends(users.get_current_user)):
     """
     Gets if a user created an entrant for a given game id. If so, returns the entrant data.
     """
-
+    print(Fore.CYAN + "Getting user entrant for game: " + str(game_id) + Style.RESET_ALL)
     get_entrant_query = sqlalchemy.text("""
         SELECT *
         FROM entrants
@@ -119,7 +121,9 @@ def get_user_entrant(game_id: int, user = Depends(users.get_current_user)):
             status_code=500,
             detail="Failed to find entrant. Error: " + str(e)
         )
-
+        
+    print(Fore.GREEN + "Successfully found user entrant for game: " + str(game_id) + Style.RESET_ALL)
+    print(entrant)
     return {
         "created": bool(entrant),
         "entrant": entrant
@@ -133,7 +137,7 @@ def get_entrant_data(entrant_id: int):
     Data includes: id, owner's id, origin game, name, weapon, total bets placed on entrant, max bet placed on entrant,
     number of matches won, and their position on their game's leaderboard.
     """
-
+    print(Fore.CYAN + "Getting entrant data for entrant: " + str(entrant_id) + Style.RESET_ALL)
     entrant_query = sqlalchemy.text("""
         WITH bet_stats AS (
             SELECT entrants.id AS entrant_id, COALESCE(SUM(amount), 0) AS total_bets, COALESCE(MAX(amount), 0) AS max_bet
@@ -163,6 +167,7 @@ def get_entrant_data(entrant_id: int):
 
             if entrant_data is None:
                 raise Exception(f'Could not find entrant with id:{entrant_id}.')
+        print(Fore.GREEN + "Successfully found entrant data for entrant: " + str(entrant_id) + Style.RESET_ALL)
     except Exception as e:
         raise HTTPException(
             status_code=500,

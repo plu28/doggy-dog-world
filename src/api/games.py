@@ -6,6 +6,7 @@ from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from src.api.users import get_current_user # middleware for auth
+from colorama import Fore, Style
 
 router = APIRouter(
     prefix="/games",
@@ -126,6 +127,7 @@ VALUES (1000, :user_id, :game_id)
 # the first player to join becomes the admin
 @router.post("/join", response_model=GameResponse)
 async def join_game(user = Depends(get_current_user)):
+    print(Fore.CYAN + "Calling endpoint: join_game" + Style.RESET_ALL)
     try:
         user_id = user.user.id
         
@@ -183,6 +185,7 @@ async def join_game(user = Depends(get_current_user)):
                     }
                 )
             
+            print(Fore.GREEN + "Successfully joined game: " + str(active_game.id) + Style.RESET_ALL)
             return GameResponse(
                 id=active_game.id,
                 created_at=active_game.created_at,
@@ -203,6 +206,7 @@ async def join_game(user = Depends(get_current_user)):
 # get the current game status if the user is in one
 @router.get("/current/")
 async def get_current_game():
+    print(Fore.CYAN + "Calling endpoint: get_current_game" + Style.RESET_ALL)
     try:
         with db.engine.begin() as conn:
             game = conn.execute(
@@ -215,6 +219,7 @@ async def get_current_game():
             detail=f"Failed to get current game: {str(e)}"
         )
 
+    print(Fore.GREEN + "Successfully retrieved current game: " + str(game) + Style.RESET_ALL)
     return game
 
 
@@ -224,6 +229,7 @@ async def get_lobby_players(
     game_id: int,
     user = Depends(get_current_user)
 ):
+    print(Fore.CYAN + "Calling endpoint: get_lobby_players" + Style.RESET_ALL)
     try:
         with db.engine.begin() as conn:
             # verify game exists and is in lobby
@@ -253,6 +259,7 @@ async def get_lobby_players(
                 {"game_id": game_id}
             ).fetchall()
             
+            print(Fore.GREEN + "Successfully retrieved lobby players: " + str(players) + Style.RESET_ALL)
             return [
                 LobbyPlayer(
                     user_id=player.user_id,
@@ -278,6 +285,9 @@ async def leave_game(
     game_id: int,
     user = Depends(get_current_user)
 ):
+    print(f"{Fore.CYAN}Calling endpoint: leave_game{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Game ID: {game_id}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}User: {user}{Style.RESET_ALL}")
     try:
         user_id = user.user.id
         
@@ -336,6 +346,7 @@ async def leave_game(
                     detail="Not in this game"
                 )
             
+            print(f"{Fore.GREEN}Successfully left game{Style.RESET_ALL}")
             return {"message": "Successfully left game"}
             
     except HTTPException as he:
@@ -353,17 +364,22 @@ async def user_status(user = Depends(get_current_user)):
     """
     For the currently active game, returns if the user is in the lobby for that game and also if they are an admin.
     """
+    print(Fore.CYAN + "Calling endpoint: user_status" + Style.RESET_ALL)
+    print(Fore.CYAN + "User: " + str(user) + Style.RESET_ALL)
     try:
         user_id = user.user.id
         print(user_id)
         with db.engine.begin() as conn: 
             status = conn.execute(sqlalchemy.text(GET_USER_STATUS_QUERY), {'user_id': user_id}).fetchone()
             if not status:
+                print(Fore.GREEN + "User is not in the lobby" + Style.RESET_ALL)
                 return UserStatus(
                     in_lobby=False,
                     is_admin=False
                 )
             else:
+                print(Fore.GREEN + "User is in the lobby" + Style.RESET_ALL)
+                print(Fore.GREEN + "User is admin: " + str(status.is_admin) + Style.RESET_ALL)
                 return UserStatus(
                     in_lobby=True,
                     is_admin=status.is_admin
@@ -383,6 +399,7 @@ async def start_game(
     game_id: int,
     user = Depends(get_current_user)
 ):
+    print(Fore.CYAN + "Calling endpoint: start_game" + Style.RESET_ALL)
     try:
         user_id = user.user.id
         
@@ -458,6 +475,7 @@ async def start_game(
 
             generate_game_steps(entrants.entrant_count)
             
+            print(Fore.GREEN + "Successfully started game: " + str(game_id) + Style.RESET_ALL)
             return GameStartResponse(
                 game_id=game_id,
                 message="Game started successfully",
@@ -476,7 +494,7 @@ async def start_game(
 # Helper function to generate game steps. Steps are stored as a list of functions in the db
 # entrants is # of entrants
 def generate_game_steps(entrants):
-
+    print(Fore.CYAN + "Generating game steps, entrants: " + str(entrants) + Style.RESET_ALL)
     # Generates list
     game_list = []
     while (entrants != 1):
@@ -496,7 +514,9 @@ def generate_game_steps(entrants):
             game_list.append("end_game()")
             break
         game_list.append(f"start_round()")
-
+    
+    print(Fore.GREEN + "Generated game steps: " + str(game_list) + Style.RESET_ALL)
+    print(Fore.CYAN + "Inserting game steps into db" + Style.RESET_ALL)
     # Inserts into db
     with db.engine.begin() as conn:
         conn.execute(sqlalchemy.text("""
@@ -504,3 +524,4 @@ def generate_game_steps(entrants):
             INSERT INTO store_game_steps (id, step_list)
             VALUES (1, :step_list)
         """), {'step_list': game_list})
+    print(Fore.GREEN + "Successfully inserted game steps into db" + Style.RESET_ALL)
