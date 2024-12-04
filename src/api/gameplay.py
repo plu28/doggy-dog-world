@@ -27,7 +27,7 @@ def bet_info(match_id: int):
 
     Note that if a user places multiple bets in one match, bet_count will only count one bet for that user
     """
-    print(Fore.CYAN + f"Getting bet info for match: {match_id}" + Style.RESET_ALL)
+    print(Fore.MAGENTA + f"Getting bet info for match: {match_id}" + Style.RESET_ALL)
     try:
         with db.engine.begin() as con:
             select_query = sqlalchemy.text('''

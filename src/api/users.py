@@ -46,7 +46,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     print(Fore.CYAN + "Calling get_current_user" + Style.RESET_ALL)
     try:
         user = supabase.auth.get_user(credentials.credentials)
-        print(Fore.CYAN + "User: " + str(user) + Style.RESET_ALL)
+        print(Fore.CYAN + f"User email: {user.user.email}" + Style.RESET_ALL)
         return user
     except Exception as e:
         raise HTTPException(
