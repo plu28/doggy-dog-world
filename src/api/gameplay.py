@@ -20,7 +20,7 @@ router = APIRouter(
 )
 
 @router.get("/{match_id}/bet_info")
-def bet_info(match_id: int):
+async def bet_info(match_id: int):
     """
     For a given match_id, returns the player count in the game
     and the bet count for that match.
@@ -140,7 +140,7 @@ def kill_game(game_id: int):
     return "OK"
 
 @router.get("/round/{game_id}")
-def get_active_round(game_id: int):
+async def get_active_round(game_id: int):
     """
     Takes a game_id and returns the current active round for that game
     """
@@ -181,7 +181,7 @@ def get_active_match(round_id: int):
 
 
 @router.get("/previous_match")
-def get_last_match():
+async def get_last_match():
     """
     Gets the most recently completed match for the current game.
     """
@@ -198,7 +198,7 @@ def get_last_match():
 
 
 @router.get("/{match_id}/results")
-def match_results(match_id: int):
+async def match_results(match_id: int):
     """
     Returns the id's of the victor and loser entrants for a given match_id
     """
@@ -238,7 +238,7 @@ def match_results(match_id: int):
     }
 
 @router.get("/{match_id}")
-def get_match_data(match_id: int):
+async def get_match_data(match_id: int):
     """
     Takes a match_id and returns all of its data.
     """
@@ -261,7 +261,7 @@ def get_match_data(match_id: int):
     return match
 
 @router.get("/balance/{game_id}")
-def get_balance(game_id: int, user = Depends(get_current_user)):
+async def get_balance(game_id: int, user = Depends(get_current_user)):
     """
     Returns the balance of a user in a game
     """
@@ -296,7 +296,7 @@ class Bet(BaseModel):
     bet_amount: int
 
 @router.post("/bet/{bet_placement_id}")
-def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
+async def place_bet(bet_placement_id: int, bet: Bet, user = Depends(get_current_user)):
     """
     Places a bet for a user on an entrant in a match.
     Requires
