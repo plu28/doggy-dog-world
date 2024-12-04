@@ -644,7 +644,7 @@ async def end_match():
 
             if total_bet != 0:
                 # Payout ratio = Total Pool / Total Bet on Winner
-                payout_ratio = total_bet / entrant_one_bet_amount
+                payout_ratio = total_bet / entrant_two_bet_amount
             else:
                 payout_ratio = 1
 
