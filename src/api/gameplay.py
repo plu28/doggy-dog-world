@@ -693,6 +693,18 @@ async def start_match():
             FROM match_victors
             WHERE match_victors.match_id IN (SELECT matches FROM active_round_matches)
         ),
+        -- Gets all the matches from the previous round
+        prev_round_matches AS (
+            SELECT matches.id AS id
+            FROM matches
+            WHERE matches.round_id = (SELECT prev_round_id FROM active_round)
+        ),
+        -- Gets all previous round winners (this is the new pool of entrants)
+        prev_round_winners AS (
+            SELECT match_victors.entrant_id AS id
+            FROM match_victors
+            WHERE match_victors.match_id IN (SELECT id FROM prev_round_matches)
+        ),
         -- Table of entrants that have not been in a match this round
         unused_entrants AS (
             SELECT
@@ -701,6 +713,11 @@ async def start_match():
             WHERE entrants.id NOT IN (SELECT victors_id FROM active_round_victors)
             AND entrants.id NOT IN (SELECT losers_id FROM active_round_losers)
             AND entrants.game_id = (SELECT id FROM active_game)
+            AND (
+                (SELECT COUNT(*) FROM prev_round_winners) > 0 AND entrants.id IN (SELECT id FROM prev_round_winners)
+                OR
+                (SELECT COUNT(*) FROM prev_round_winners) = 0
+            )
         ),
         entrant_selection AS (
             SELECT
@@ -770,6 +787,18 @@ async def start_redemption_match():
             FROM match_victors
             WHERE match_victors.match_id IN (SELECT matches FROM active_round_matches)
         ),
+        -- Gets all the matches from the previous round
+        prev_round_matches AS (
+            SELECT matches.id AS id
+            FROM matches
+            WHERE matches.round_id = (SELECT prev_round_id FROM active_round)
+        ),
+        -- Gets all previous round winners (this is the new pool of entrants)
+        prev_round_winners AS (
+            SELECT match_victors.entrant_id AS id
+            FROM match_victors
+            WHERE match_victors.match_id IN (SELECT id FROM prev_round_matches)
+        ),
         -- Table of entrants that have not been in a match this round
         unused_entrants AS (
             SELECT
@@ -778,12 +807,17 @@ async def start_redemption_match():
             WHERE entrants.id NOT IN (SELECT victors_id FROM active_round_victors)
             AND entrants.id NOT IN (SELECT losers_id FROM active_round_losers)
             AND entrants.game_id = (SELECT id FROM active_game)
+            AND (
+                (SELECT COUNT(*) FROM prev_round_winners) > 0 AND entrants.id IN (SELECT id FROM prev_round_winners)
+                OR
+                (SELECT COUNT(*) FROM prev_round_winners) = 0
+            )
         )
         INSERT INTO matches (round_id, entrant_one, entrant_two)
         SELECT
             (SELECT round FROM active_round) AS round_id,
             (SELECT entrant_id FROM unused_entrants) AS entrant_one,
-            (SELECT losers_id FROM active_round_losers) AS entrant_two
+            (SELECT losers_id FROM active_round_losers LIMIT 1) AS entrant_two
         RETURNING id, round_id, entrant_one, entrant_two
     ''')
     with db.engine.begin() as con:
