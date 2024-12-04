@@ -223,6 +223,36 @@ async def get_current_game():
     return game
 
 
+@router.get("/latest/")
+async def get_latest_game():
+    """
+    Gets the most recently completed game.
+    """
+
+    game_query = sqlalchemy.text("""
+        SELECT game_id
+        FROM completed_games
+        ORDER BY completed_at DESC
+        LIMIT 1
+    """)
+
+    try:
+        with db.engine.begin() as conn:
+            game = conn.execute(game_query).scalar_one_or_none()
+            if not game:
+                raise Exception('Could not find latest game')
+    except Exception as e:
+        print(f"Get current game error: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to get latest game: {str(e)}"
+        )
+
+    return {
+        "game_id": game
+    }
+
+
 # get all players in the game lobby
 @router.get("/{game_id}/lobby", response_model=List[LobbyPlayer])
 async def get_lobby_players(
