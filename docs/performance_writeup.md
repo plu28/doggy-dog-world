@@ -1,8 +1,3 @@
----
-title: performance_writeup
-
----
-
 # Fake Data Modeling
 - Link to Python script: https://github.com/plu28/doggy-dog-world/tree/main/scripts
 
@@ -82,6 +77,22 @@ We felt this kind of game best represents an "average" game.
 ### 3. /entrants/{entrant_id}
 
 - NOTE: the /users/register and users/login endpoints are technically our 2nd and 3rd slowest endpoints. However the slowdowns in these endpoints are not due to any SQL queries and therefore can not be optimized with indexes.
+
+
+# Three slowest endpoints after performance tuning
+| Iteration | get users leaderboard | join game | get entrant data |
+| --------- | --------------------- | --------- | ---------------- |
+| 1         | 0.0423                | 0.0133    | 0.0715           |
+| 2         | 0.0404                | 0.0225    | 0.0387           |
+| 3         | 0.0505                | 0.0161    | 0.0336           |
+| 4         | 0.0087                | 0.0358    | 0.0307           |
+| 5         | 0.0053                | 0.0184    | 0.0361           |
+| 6         | 0.0076                | 0.0261    | 0.0338           |
+| 7         | 0.0069                | 0.0182    | 0.0334           |
+| 8         | 0.0090                | 0.0253    | 0.0281           |
+| 9         | 0.0052                | 0.0261    | 0.0362           |
+| 10        | 0.0077                | 0.0259    | 0.0388           |
+| avg (ms)  | 18.36                 | 22.77     | 38.09            |
 
 
 # Performance Tuning
@@ -931,84 +942,215 @@ WHERE entrants.id = :entrant_id
 ```json
 [
   {
-    "QUERY PLAN": "Nested Loop  (cost=5324.06..11378.64 rows=150 width=100)"
+    "QUERY PLAN": "Nested Loop  (cost=5318.19..11367.17 rows=150 width=100) (actual time=68.133..68.829 rows=1 loops=1)"
   },
   {
-    "QUERY PLAN": "  ->  Nested Loop  (cost=1000.58..6150.77 rows=1 width=84)"
+    "QUERY PLAN": "  ->  Nested Loop  (cost=1000.58..6146.86 rows=1 width=84) (actual time=28.913..28.983 rows=1 loops=1)"
   },
   {
-    "QUERY PLAN": "        ->  Index Scan using entrants_pkey on entrants  (cost=0.29..8.30 rows=1 width=44)"
+    "QUERY PLAN": "        ->  Index Scan using entrants_pkey on entrants  (cost=0.29..8.30 rows=1 width=44) (actual time=0.083..0.089 rows=1 loops=1)"
   },
   {
     "QUERY PLAN": "              Index Cond: (id = 30033)"
   },
   {
-    "QUERY PLAN": "        ->  GroupAggregate  (cost=1000.29..6142.45 rows=1 width=48)"
+    "QUERY PLAN": "        ->  GroupAggregate  (cost=1000.29..6138.53 rows=1 width=48) (actual time=28.826..28.889 rows=1 loops=1)"
   },
   {
     "QUERY PLAN": "              Group Key: entrants_1.id"
   },
   {
-    "QUERY PLAN": "              ->  Nested Loop Left Join  (cost=1000.29..6142.43 rows=1 width=16)"
+    "QUERY PLAN": "              ->  Nested Loop Left Join  (cost=1000.29..6138.51 rows=1 width=16) (actual time=28.817..28.883 rows=1 loops=1)"
   },
   {
     "QUERY PLAN": "                    Join Filter: (entrants_1.id = bets.entrant_id)"
   },
   {
-    "QUERY PLAN": "                    ->  Index Only Scan using entrants_pkey on entrants entrants_1  (cost=0.29..8.30 rows=1 width=8)"
+    "QUERY PLAN": "                    ->  Index Only Scan using entrants_pkey on entrants entrants_1  (cost=0.29..4.30 rows=1 width=8) (actual time=0.023..0.026 rows=1 loops=1)"
   },
   {
     "QUERY PLAN": "                          Index Cond: (id = 30033)"
   },
   {
-    "QUERY PLAN": "                    ->  Gather  (cost=1000.00..6132.75 rows=110 width=16)"
+    "QUERY PLAN": "                          Heap Fetches: 0"
+  },
+  {
+    "QUERY PLAN": "                    ->  Gather  (cost=1000.00..6132.84 rows=109 width=16) (actual time=28.792..28.854 rows=0 loops=1)"
   },
   {
     "QUERY PLAN": "                          Workers Planned: 2"
   },
   {
-    "QUERY PLAN": "                          ->  Parallel Seq Scan on bets  (cost=0.00..5121.75 rows=46 width=16)"
+    "QUERY PLAN": "                          Workers Launched: 2"
+  },
+  {
+    "QUERY PLAN": "                          ->  Parallel Seq Scan on bets  (cost=0.00..5121.94 rows=45 width=16) (actual time=14.593..14.593 rows=0 loops=3)"
   },
   {
     "QUERY PLAN": "                                Filter: (entrant_id = 30033)"
   },
   {
-    "QUERY PLAN": "  ->  Subquery Scan on lbs  (cost=4323.49..5226.37 rows=150 width=24)"
+    "QUERY PLAN": "                                Rows Removed by Filter: 110012"
+  },
+  {
+    "QUERY PLAN": "  ->  Subquery Scan on lbs  (cost=4317.61..5218.81 rows=150 width=24) (actual time=39.207..39.832 rows=1 loops=1)"
   },
   {
     "QUERY PLAN": "        Filter: (lbs.entrant_id = 30033)"
   },
   {
-    "QUERY PLAN": "        ->  WindowAgg  (cost=4323.49..4850.17 rows=30096 width=24)"
+    "QUERY PLAN": "        Rows Removed by Filter: 30039"
   },
   {
-    "QUERY PLAN": "              ->  Sort  (cost=4323.49..4398.73 rows=30096 width=16)"
+    "QUERY PLAN": "        ->  WindowAgg  (cost=4317.61..4843.31 rows=30040 width=24) (actual time=30.714..38.827 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "              ->  Sort  (cost=4317.61..4392.71 rows=30040 width=16) (actual time=30.248..31.351 rows=30040 loops=1)"
   },
   {
     "QUERY PLAN": "                    Sort Key: (count(match_victors.entrant_id)) DESC"
   },
   {
-    "QUERY PLAN": "                    ->  HashAggregate  (cost=1783.80..2084.76 rows=30096 width=16)"
+    "QUERY PLAN": "                    Sort Method: quicksort  Memory: 2411kB"
+  },
+  {
+    "QUERY PLAN": "                    ->  HashAggregate  (cost=1783.05..2083.45 rows=30040 width=16) (actual time=23.086..26.973 rows=30040 loops=1)"
   },
   {
     "QUERY PLAN": "                          Group Key: entrants_2.id"
   },
   {
-    "QUERY PLAN": "                          ->  Hash Right Join  (cost=991.16..1618.80 rows=33000 width=16)"
+    "QUERY PLAN": "                          Batches: 1  Memory Usage: 4113kB"
+  },
+  {
+    "QUERY PLAN": "                          ->  Hash Right Join  (cost=989.90..1617.90 rows=33029 width=16) (actual time=7.520..15.953 rows=60048 loops=1)"
   },
   {
     "QUERY PLAN": "                                Hash Cond: (match_victors.entrant_id = entrants_2.id)"
   },
   {
-    "QUERY PLAN": "                                ->  Seq Scan on match_victors  (cost=0.00..541.00 rows=33000 width=8)"
+    "QUERY PLAN": "                                ->  Seq Scan on match_victors  (cost=0.00..541.29 rows=33029 width=8) (actual time=0.019..1.459 rows=33029 loops=1)"
   },
   {
-    "QUERY PLAN": "                                ->  Hash  (cost=614.96..614.96 rows=30096 width=8)"
+    "QUERY PLAN": "                                ->  Hash  (cost=614.40..614.40 rows=30040 width=8) (actual time=7.407..7.408 rows=30040 loops=1)"
   },
   {
-    "QUERY PLAN": "                                      ->  Seq Scan on entrants entrants_2  (cost=0.00..614.96 rows=30096 width=8)"
+    "QUERY PLAN": "                                      Buckets: 32768  Batches: 1  Memory Usage: 1430kB"
+  },
+  {
+    "QUERY PLAN": "                                      ->  Seq Scan on entrants entrants_2  (cost=0.00..614.40 rows=30040 width=8) (actual time=0.006..4.898 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "Planning Time: 4.144 ms"
+  },
+  {
+    "QUERY PLAN": "Execution Time: 69.669 ms"
   }
 ]
 ```
-- The majority of the cost here is due to the sort performed by the DENSE_RANK() function. Adding an index to this query wouldn't really do much since you still have to sort all the rows.
+- The majority of the cost here is due to the sort performed by the DENSE_RANK() function. Adding an index to this part of the query wouldn't really do much since you still have to sort all the rows.
+- However, a sequence scan is being done on bets for an entrant_id with a cost of ~1000. An index could be added here to reduce the total query cost by ~1000. 
 
+#### Optimization
+```sql
+CREATE INDEX idx_bets_entrant_id ON bets(entrant_id)
+```
+
+#### Explain Result (After Optimization)
+```jsonld
+[
+  {
+    "QUERY PLAN": "Nested Loop  (cost=4318.61..5245.65 rows=150 width=100) (actual time=44.869..45.506 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "  ->  Nested Loop  (cost=1.00..25.34 rows=1 width=84) (actual time=1.677..1.685 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "        ->  Index Scan using entrants_pkey on entrants  (cost=0.29..8.30 rows=1 width=44) (actual time=0.068..0.074 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "              Index Cond: (id = 30033)"
+  },
+  {
+    "QUERY PLAN": "        ->  GroupAggregate  (cost=0.71..17.02 rows=1 width=48) (actual time=1.606..1.607 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "              Group Key: entrants_1.id"
+  },
+  {
+    "QUERY PLAN": "              ->  Nested Loop Left Join  (cost=0.71..17.00 rows=1 width=16) (actual time=1.600..1.602 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                    Join Filter: (entrants_1.id = bets.entrant_id)"
+  },
+  {
+    "QUERY PLAN": "                    ->  Index Only Scan using entrants_pkey on entrants entrants_1  (cost=0.29..4.30 rows=1 width=8) (actual time=0.005..0.006 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                          Index Cond: (id = 30033)"
+  },
+  {
+    "QUERY PLAN": "                          Heap Fetches: 0"
+  },
+  {
+    "QUERY PLAN": "                    ->  Index Scan using idx_bets_entrant_id on bets  (cost=0.42..11.33 rows=109 width=16) (actual time=1.593..1.593 rows=0 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                          Index Cond: (entrant_id = 30033)"
+  },
+  {
+    "QUERY PLAN": "  ->  Subquery Scan on lbs  (cost=4317.61..5218.81 rows=150 width=24) (actual time=43.189..43.817 rows=1 loops=1)"
+  },
+  {
+    "QUERY PLAN": "        Filter: (lbs.entrant_id = 30033)"
+  },
+  {
+    "QUERY PLAN": "        Rows Removed by Filter: 30039"
+  },
+  {
+    "QUERY PLAN": "        ->  WindowAgg  (cost=4317.61..4843.31 rows=30040 width=24) (actual time=32.748..42.768 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "              ->  Sort  (cost=4317.61..4392.71 rows=30040 width=16) (actual time=32.285..33.702 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                    Sort Key: (count(match_victors.entrant_id)) DESC"
+  },
+  {
+    "QUERY PLAN": "                    Sort Method: quicksort  Memory: 2411kB"
+  },
+  {
+    "QUERY PLAN": "                    ->  HashAggregate  (cost=1783.05..2083.45 rows=30040 width=16) (actual time=26.491..29.288 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                          Group Key: entrants_2.id"
+  },
+  {
+    "QUERY PLAN": "                          Batches: 1  Memory Usage: 4113kB"
+  },
+  {
+    "QUERY PLAN": "                          ->  Hash Right Join  (cost=989.90..1617.90 rows=33029 width=16) (actual time=5.913..18.078 rows=60048 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                                Hash Cond: (match_victors.entrant_id = entrants_2.id)"
+  },
+  {
+    "QUERY PLAN": "                                ->  Seq Scan on match_victors  (cost=0.00..541.29 rows=33029 width=8) (actual time=0.010..1.505 rows=33029 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                                ->  Hash  (cost=614.40..614.40 rows=30040 width=8) (actual time=5.776..5.777 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "                                      Buckets: 32768  Batches: 1  Memory Usage: 1430kB"
+  },
+  {
+    "QUERY PLAN": "                                      ->  Seq Scan on entrants entrants_2  (cost=0.00..614.40 rows=30040 width=8) (actual time=0.007..3.276 rows=30040 loops=1)"
+  },
+  {
+    "QUERY PLAN": "Planning Time: 6.407 ms"
+  },
+  {
+    "QUERY PLAN": "Execution Time: 46.619 ms"
+  }
+]
+```
