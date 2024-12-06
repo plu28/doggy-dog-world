@@ -36,14 +36,25 @@ async def validate_entrant(entrant: Entrant):
             content=[{"text": {"text": entrant.weapon}}]
         )
         
+        # Check concatenation of both
+        combined_response = bedrock.apply_guardrail(
+            guardrailIdentifier=GUARDRAIL_ID,
+            guardrailVersion=GUARDRAIL_VERSION,
+            source='INPUT',
+            content=[{"text": {"text": entrant.name + entrant.weapon}}]
+        )
+        
         if name_response['action'] != 'NONE':
             print(f"{Fore.RED}Name validation failed: {name_response['action']}{Style.RESET_ALL}")
         if weapon_response['action'] != 'NONE':
             print(f"{Fore.RED}Weapon validation failed: {weapon_response['action']}{Style.RESET_ALL}")
+        if combined_response['action'] != 'NONE':
+            print(f"{Fore.RED}Combined validation failed: {combined_response['action']}{Style.RESET_ALL}")
             
         # Return True only if both checks pass
         return (name_response['action'] == 'NONE' and 
-                weapon_response['action'] == 'NONE')
+                weapon_response['action'] == 'NONE' and
+                combined_response['action'] == 'NONE')
                 
     except Exception as e:
         raise HTTPException(
