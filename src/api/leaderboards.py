@@ -31,7 +31,7 @@ def get_entrants_leaderboard(game_id):
                             COUNT(match_victors.entrant_id) AS total_wins,
                             DENSE_RANK() OVER (ORDER BY COUNT(match_victors.entrant_id) DESC) AS rank
                         FROM entrants
-                        JOIN match_victors ON match_victors.entrant_id = entrants.id
+                        LEFT JOIN match_victors ON match_victors.entrant_id = entrants.id
                         WHERE game_id = :game_id
                         GROUP BY entrants.game_id, entrants.name, entrants.weapon
                         ORDER BY rank, total_wins DESC
