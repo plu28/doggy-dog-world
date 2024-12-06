@@ -149,13 +149,14 @@ async def generate_fight_story(request: FightStoryRequest, match_id: int):
         {request.entrant2.name.upper()}
         Armed with: {request.entrant2.weapon}
 
-        Write an epic 5-7 sentence story that unfolds like a legend, using present tense and cinematic language. The story should:
+        Write an epic 3-4 sentence story that unfolds like a legend, using present tense and cinematic language. The story should:
 
         1. Start with an atmospheric scene-setting sentence
         2. Introduce both warriors with their weapons, building tension
-        3. Describe 2-3 dramatic exchanges of combat, showcasing both fighters' skills
-        4. Build to a climactic moment where the tide turns
-        5. End with {request.winner}'s decisive victory
+        3. Make the story humorous, with a twist at the end
+        4. Describe 1-2 dramatic exchanges of combat, showcasing both fighters' skills
+        5. Build to a climactic moment where the tide turns
+        6. End with {request.winner}'s decisive victory
 
         Keep sentences powerful but not too long, perfect for scrolling text. Focus on visual imagery and dramatic action that brings the battle to life. Your response must start with the words THE BATTLE BEGINS"""
 
